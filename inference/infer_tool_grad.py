@@ -80,7 +80,7 @@ def mkdir(paths: list):
 
 class VitsSvc(object):
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("xpu" if torch.xpu.is_available() else "cpu")
         self.SVCVITS = None
         self.hps = None
         self.speakers = None

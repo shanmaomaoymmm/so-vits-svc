@@ -4,7 +4,7 @@ import librosa
 import numpy as np
 import torch
 from torch import autocast
-from torch.cuda.amp import GradScaler
+from torch.xpu.amp import GradScaler
 
 from diffusion.logger import utils
 from diffusion.logger.saver import Saver

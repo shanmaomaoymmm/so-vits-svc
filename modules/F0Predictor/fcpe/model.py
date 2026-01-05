@@ -167,7 +167,7 @@ class FCPE(nn.Module):
 class FCPEInfer:
     def __init__(self, model_path, device=None, dtype=torch.float32):
         if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = 'xpu' if torch.xpu.is_available() else 'cpu'
         self.device = device
         ckpt = torch.load(model_path, map_location=torch.device(self.device))
         self.args = DotDict(ckpt["config"])
@@ -210,7 +210,7 @@ class Wav2Mel:
         self.sampling_rate = args.mel.sampling_rate
         self.hop_size = args.mel.hop_size
         if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = 'xpu' if torch.xpu.is_available() else 'cpu'
         self.device = device
         self.dtype = dtype
         self.stft = STFT(

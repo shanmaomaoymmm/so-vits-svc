@@ -9,7 +9,7 @@ class WhisperPPGLarge(SpeechEncoder):
     def __init__(self, vec_path="pretrain/large-v2.pt", device=None):
         super().__init__()
         if device is None:
-            self.dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.dev = torch.device("xpu" if torch.xpu.is_available() else "cpu")
         else:
             self.dev = torch.device(device)
         checkpoint = torch.load(vec_path, map_location=device)

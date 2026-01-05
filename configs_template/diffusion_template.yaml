@@ -21,7 +21,7 @@ model:
   timesteps : 1000
   k_step_max: 0 # must <= timesteps, If it is 0, train all
   n_spk: 1 # max number of different speakers
-device: cuda
+device: xpu
 vocoder:
   type: 'nsf-hifigan'
   ckpt: 'pretrain/nsf_hifigan/model'

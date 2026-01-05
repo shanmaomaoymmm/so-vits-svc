@@ -39,6 +39,10 @@ if torch.cuda.is_available():
     for i in range(torch.cuda.device_count()):
         device_name = torch.cuda.get_device_properties(i).name
         cuda[f"CUDA:{i} {device_name}"] = f"cuda:{i}"
+elif torch.xpu.is_available():
+    for i in range(torch.xpu.device_count()):
+        device_name = torch.xpu.get_device_name(i)
+        cuda[f"XPU:{i} {device_name}"] = f"xpu:{i}"
 
 def upload_mix_append_file(files,sfiles):
     try:
@@ -82,7 +86,7 @@ def updata_mix_info(files):
 def modelAnalysis(model_path,config_path,cluster_model_path,device,enhance,diff_model_path,diff_config_path,only_diffusion,use_spk_mix,local_model_enabled,local_model_selection):
     global model
     try:
-        device = cuda[device] if "CUDA" in device else device
+        device = cuda[device] if "CUDA" in device or "XPU" in device else device
         cluster_filepath = os.path.split(cluster_model_path.name) if cluster_model_path is not None else "no_cluster"
         # get model and config path
         if (local_model_enabled):
@@ -107,7 +111,12 @@ def modelAnalysis(model_path,config_path,cluster_model_path,device,enhance,diff_
                 feature_retrieval = fr
                 )
         spks = list(model.spk2id.keys())
-        device_name = torch.cuda.get_device_properties(model.dev).name if "cuda" in str(model.dev) else str(model.dev)
+        if "cuda" in str(model.dev):
+            device_name = torch.cuda.get_device_properties(model.dev).name
+        elif "xpu" in str(model.dev):
+            device_name = torch.xpu.get_device_name(model.dev)
+        else:
+            device_name = str(model.dev)
         msg = f"成功加载模型到设备{device_name}上\n"
         if cluster_model_path is None:
             msg += "未加载聚类模型或特征检索模型\n"
@@ -136,7 +145,10 @@ def modelUnload():
     else:
         model.unload_model()
         model = None
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif torch.xpu.is_available():
+            torch.xpu.empty_cache()
         return sid.update(choices = [],value=""),"模型卸载完毕!"
     
 def vc_infer(output_format, sid, audio_path, truncated_basename, vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment):
@@ -272,13 +284,7 @@ def debug_change():
     global debug
     debug = debug_button.value
 
-with gr.Blocks(
-    theme=gr.themes.Base(
-        primary_hue = gr.themes.colors.green,
-        font=["Source Sans Pro", "Arial", "sans-serif"],
-        font_mono=['JetBrains mono', "Consolas", 'Courier New']
-    ),
-) as app:
+with gr.Blocks() as app:
     with gr.Tabs():
         with gr.TabItem("推理"):
             gr.Markdown(value="""
@@ -365,7 +371,7 @@ with gr.Blocks(
             with gr.Tabs():
                 with gr.TabItem("静态声线融合"):
                     gr.Markdown(value="""
-                        <font size=2> 介绍:该功能可以将多个声音模型合成为一个声音模型(多个模型参数的凸组合或线性组合)，从而制造出现实中不存在的声线 
+                        <font size=2> 介绍:该功能可以将多个声音模型合合成一个声音模型(多个模型参数的凸组合或线性组合)，从而制造出现实中不存在的声线 
                                           注意：
                                           1.该功能仅支持单说话人的模型
                                           2.如果强行使用多说话人模型，需要保证多个模型的说话人数量相同，这样可以混合同一个SpaekerID下的声音
@@ -423,8 +429,18 @@ with gr.Blocks(
         debug_button.change(debug_change,[],[])
         model_load_button.click(modelAnalysis,[model_path,config_path,cluster_model_path,device,enhance,diff_model_path,diff_config_path,only_diffusion,use_spk_mix,local_model_enabled,local_model_selection],[sid,sid_output])
         model_unload_button.click(modelUnload,[],[sid,sid_output])
-    os.system("start http://127.0.0.1:7860")
-    app.launch()
-
-
- 
+    
+    # 修改主题定义以适配新版本的Gradio
+    app.launch(
+        server_name="127.0.0.1",
+        server_port=7860,
+        share=False,
+        inbrowser=True,
+        show_error=True,
+        # 适配新版本Gradio的主题定义
+        theme=gr.themes.Default(
+            primary_hue=gr.themes.colors.green,
+            font=["Source Sans Pro", "Arial", "sans-serif"],
+            font_mono=['JetBrains mono', "Consolas", 'Courier New']
+        )
+    )

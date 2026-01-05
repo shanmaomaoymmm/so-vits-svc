@@ -11,7 +11,7 @@ class WavLMBasePlus(SpeechEncoder):
         checkpoint = torch.load(vec_path)
         self.cfg = WavLMConfig(checkpoint['cfg'])
         if device is None:
-            self.dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.dev = torch.device("xpu" if torch.xpu.is_available() else "cpu")
         else:
             self.dev = torch.device(device)
         self.hidden_dim = self.cfg.encoder_embed_dim

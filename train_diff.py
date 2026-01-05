@@ -62,6 +62,8 @@ if __name__ == '__main__':
     # device
     if args.device == 'cuda':
         torch.cuda.set_device(args.env.gpu_id)
+    elif args.device == 'xpu':
+        torch.xpu.set_device(args.env.gpu_id)
     model.to(args.device)
     
     for state in optimizer.state.values():

@@ -16,7 +16,7 @@ from .utils import get_padding, init_weights
 LRELU_SLOPE = 0.1
 
 
-def load_model(model_path, device='cuda'):
+def load_model(model_path, device='xpu' if torch.xpu.is_available() else 'cpu'):
     config_file = os.path.join(os.path.split(model_path)[0], 'config.json')
     with open(config_file) as f:
         data = f.read()

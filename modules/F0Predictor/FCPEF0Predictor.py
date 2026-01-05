@@ -17,7 +17,7 @@ class FCPEF0Predictor(F0Predictor):
         self.f0_min = f0_min
         self.f0_max = f0_max
         if device is None:
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            self.device = 'xpu' if torch.xpu.is_available() else 'cpu'
         else:
             self.device = device
         self.threshold = threshold

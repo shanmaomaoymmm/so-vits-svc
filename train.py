@@ -34,10 +34,15 @@ start_time = time.time()
 
 def main():
     """Assume Single Node Multi GPUs Training Only"""
-    assert torch.cuda.is_available(), "CPU training is not allowed."
+    assert torch.cuda.is_available() or torch.xpu.is_available(), "CPU training is not allowed."
     hps = utils.get_hparams()
 
-    n_gpus = torch.cuda.device_count()
+    if torch.cuda.is_available():
+        n_gpus = torch.cuda.device_count()
+    elif torch.xpu.is_available():
+        n_gpus = torch.xpu.device_count()
+    else:
+        n_gpus = 1  # fallback to 1 if no GPU is available
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = hps.train.port
 
@@ -54,9 +59,18 @@ def run(rank, n_gpus, hps):
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
     
     # for pytorch on win, backend use gloo    
-    dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'nccl', init_method='env://', world_size=n_gpus, rank=rank)
+    # dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'nccl', init_method='env://', world_size=n_gpus, rank=rank)
+    if torch.cuda.is_available():
+        dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'nccl', init_method='env://', world_size=n_gpus, rank=rank)
+    elif torch.xpu.is_available():
+        dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'ccl', init_method='env://', world_size=n_gpus, rank=rank)
+    else:
+        raise RuntimeError("No GPU or XPU available")
     torch.manual_seed(hps.train.seed)
-    torch.cuda.set_device(rank)
+    if torch.cuda.is_available():
+        torch.cuda.set_device(rank)
+    elif torch.xpu.is_available():
+        torch.xpu.set_device(rank)
     collate_fn = TextAudioCollate()
     all_in_mem = hps.train.all_in_mem   # If you have enough memory, turn on this option to avoid disk IO and speed up training.
     train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps, all_in_mem=all_in_mem)
@@ -74,8 +88,8 @@ def run(rank, n_gpus, hps):
     net_g = SynthesizerTrn(
         hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
-        **hps.model).cuda(rank)
-    net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).cuda(rank)
+        **hps.model).to(rank)
+    net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).to(rank)
     optim_g = torch.optim.AdamW(
         net_g.parameters(),
         hps.train.learning_rate,
@@ -86,8 +100,17 @@ def run(rank, n_gpus, hps):
         hps.train.learning_rate,
         betas=hps.train.betas,
         eps=hps.train.eps)
-    net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
-    net_d = DDP(net_d, device_ids=[rank])
+    # net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
+    # net_d = DDP(net_d, device_ids=[rank])
+    if torch.cuda.is_available():
+        net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
+        net_d = DDP(net_d, device_ids=[rank])
+    elif torch.xpu.is_available():
+        net_g = DDP(net_g, device_ids=[rank])
+        net_d = DDP(net_d, device_ids=[rank])
+    else:
+        net_g = DDP(net_g)
+        net_d = DDP(net_d)
 
     skip_optimizer = False
     try:
@@ -149,12 +172,12 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
     net_d.train()
     for batch_idx, items in enumerate(train_loader):
         c, f0, spec, y, spk, lengths, uv,volume = items
-        g = spk.cuda(rank, non_blocking=True)
-        spec, y = spec.cuda(rank, non_blocking=True), y.cuda(rank, non_blocking=True)
-        c = c.cuda(rank, non_blocking=True)
-        f0 = f0.cuda(rank, non_blocking=True)
-        uv = uv.cuda(rank, non_blocking=True)
-        lengths = lengths.cuda(rank, non_blocking=True)
+        g = spk.to(rank, non_blocking=True)
+        spec, y = spec.to(rank, non_blocking=True), y.to(rank, non_blocking=True)
+        c = c.to(rank, non_blocking=True)
+        f0 = f0.to(rank, non_blocking=True)
+        uv = uv.to(rank, non_blocking=True)
+        lengths = lengths.to(rank, non_blocking=True)
         mel = spec_to_mel_torch(
             spec,
             hps.data.filter_length,
@@ -280,13 +303,13 @@ def evaluate(hps, generator, eval_loader, writer_eval):
     with torch.no_grad():
         for batch_idx, items in enumerate(eval_loader):
             c, f0, spec, y, spk, _, uv,volume = items
-            g = spk[:1].cuda(0)
-            spec, y = spec[:1].cuda(0), y[:1].cuda(0)
-            c = c[:1].cuda(0)
-            f0 = f0[:1].cuda(0)
-            uv= uv[:1].cuda(0)
+            g = spk[:1].to(0)
+            spec, y = spec[:1].to(0), y[:1].to(0)
+            c = c[:1].to(0)
+            f0 = f0[:1].to(0)
+            uv= uv[:1].to(0)
             if volume is not None:
-                volume = volume[:1].cuda(0)
+                volume = volume[:1].to(0)
             mel = spec_to_mel_torch(
                 spec,
                 hps.data.filter_length,

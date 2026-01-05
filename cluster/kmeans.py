@@ -86,11 +86,22 @@ class KMeansGPU:
     self.verbose = verbose
     self.mode = mode
     self.device=device
-    pynvml.nvmlInit()
-    gpu_handle = pynvml.nvmlDeviceGetHandleByIndex(device.index)
-    info = pynvml.nvmlDeviceGetMemoryInfo(gpu_handle)
-    self.minibatch=int(33e6/self.n_clusters*info.free/ 1024 / 1024 / 1024)
-    print("free_mem/GB:",info.free/ 1024 / 1024 / 1024,"minibatch:",self.minibatch)
+    if device.type == 'cuda':
+        pynvml.nvmlInit()
+        gpu_handle = pynvml.nvmlDeviceGetHandleByIndex(device.index)
+        info = pynvml.nvmlDeviceGetMemoryInfo(gpu_handle)
+        self.minibatch=int(33e6/self.n_clusters*info.free/ 1024 / 1024 / 1024)
+        print("free_mem/GB:",info.free/ 1024 / 1024 / 1024,"minibatch:",self.minibatch)
+    elif device.type == 'xpu':
+        # XPU设备使用不同的内存管理方式
+        xpu_memory = torch.xpu.get_device_properties(device.index).total_memory
+        # 使用可用内存的一个比例，而不是直接查询可用内存
+        self.minibatch=int(33e6/self.n_clusters*xpu_memory/ 1024 / 1024 / 1024 * 0.8)  # 80%作为可用内存
+        print("xpu_memory/GB:",xpu_memory/ 1024 / 1024 / 1024,"minibatch:",self.minibatch)
+    else:
+        # CPU设备的默认值
+        self.minibatch = 10000
+        print("CPU device, minibatch:", self.minibatch)
     
   @staticmethod
   def cos_sim(a, b):
@@ -165,7 +176,10 @@ class KMeansGPU:
       # print(x.device)
       self.centroids = _kpp(x, self.n_clusters, min(int(self.minibatch/12/offset),batch_size))
       del x
-      torch.cuda.empty_cache()
+      if torch.cuda.is_available() and self.device.type == 'cuda':
+          torch.cuda.empty_cache()
+      elif torch.xpu.is_available() and self.device.type == 'xpu':
+          torch.xpu.empty_cache()
       # self.centroids = self.centroids.to(self.device)
       num_points_in_clusters = torch.ones(self.n_clusters, device=self.device, dtype=X.dtype)#全1
       closest = None#[3098036]#int64

@@ -14,7 +14,7 @@ class CNHubertLarge(SpeechEncoder):
           suffix="",
         )
         if device is None:
-            self.dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.dev = torch.device("xpu" if torch.xpu.is_available() else "cpu")
         else:
             self.dev = torch.device(device)
         self.model = models[0].to(self.dev)

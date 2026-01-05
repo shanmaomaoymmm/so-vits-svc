@@ -130,7 +130,7 @@ class Svc(object):
         self.shallow_diffusion = shallow_diffusion
         self.feature_retrieval = feature_retrieval
         if device is None:
-            self.dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.dev = torch.device("xpu" if torch.xpu.is_available() else "cpu")
         else:
             self.dev = torch.device(device)
         self.net_g_ms = None
@@ -194,7 +194,7 @@ class Svc(object):
             **self.hps_ms.model)
         _ = utils.load_checkpoint(self.net_g_path, self.net_g_ms, None)
         self.dtype = list(self.net_g_ms.parameters())[0].dtype
-        if "half" in self.net_g_path and torch.cuda.is_available():
+        if "half" in self.net_g_path and (torch.cuda.is_available() or torch.xpu.is_available()):
             _ = self.net_g_ms.half().eval().to(self.dev)
         else:
             _ = self.net_g_ms.eval().to(self.dev)
@@ -341,7 +341,10 @@ class Svc(object):
 
     def clear_empty(self):
         # clean up vram
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif torch.xpu.is_available():
+            torch.xpu.empty_cache()
 
     def unload_model(self):
         # unload model

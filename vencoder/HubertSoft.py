@@ -10,7 +10,7 @@ class HubertSoft(SpeechEncoder):
         print("load model(s) from {}".format(vec_path))
         hubert_soft = hubert_model.hubert_soft(vec_path)
         if device is None:
-            self.dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.dev = torch.device("xpu" if torch.xpu.is_available() else "cpu")
         else:
             self.dev = torch.device(device)
         self.hidden_dim = 256

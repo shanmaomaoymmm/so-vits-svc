@@ -495,8 +495,11 @@ class SynthesizerTrn(nn.Module):
     @torch.no_grad()
     def infer(self, c, f0, uv, g=None, noice_scale=0.35, seed=52468, predict_f0=False, vol = None):
 
-        if c.device == torch.device("cuda"):
-            torch.cuda.manual_seed_all(seed)
+        if c.device == torch.device("cuda") or c.device == torch.device("xpu"):
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+            elif torch.xpu.is_available():
+                torch.xpu.manual_seed_all(seed)
         else:
             torch.manual_seed(seed)
 
