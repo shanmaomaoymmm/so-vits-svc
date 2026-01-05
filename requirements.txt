@@ -1,31 +1,55 @@
-ffmpeg-python
-Flask
-Flask_Cors
-gradio>=3.7.0
-numpy==1.23.5
+# Core dependencies
+librosa
 pyworld
-scipy==1.10.0
-SoundFile==0.12.1
-torch
-torchaudio
-torchcrepe
-tqdm
-rich
-loguru
-scikit-maad
+SoundFile
+scipy
 praat-parselmouth
+ffmpeg-python
+torchcrepe
+
+# ONNX and optimization
 onnx
 onnxsim
 onnxoptimizer
-fairseq==0.12.2
-librosa==0.9.1
+
+# Machine learning and NLP
+transformers
+git+https://github.com/One-sixth/fairseq.git
+faiss-cpu
+
+# Web framework and UI
+Flask
+Flask_Cors
+gradio
+
+# Basic utilities
+numpy
+tqdm
+pyyaml
+
+# Logging and output
+loguru
+rich
+
+# Visualization
+matplotlib
 tensorboard
 tensorboardX
-transformers
-edge_tts
-langdetect
-pyyaml
-pynvml
-faiss-cpu
+
+# Audio/speech specific
+scikit-maad
 einops
 local_attention
+
+# Text processing
+edge_tts
+langdetect
+
+# System utilities
+psutil
+
+# PyTorch ecosystem
+--find-links https://download.pytorch.org/whl/xpu
+torch
+torchvision
+torchaudio
