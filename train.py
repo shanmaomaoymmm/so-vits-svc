@@ -6,7 +6,7 @@ import time
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
@@ -37,13 +37,18 @@ def main():
     assert torch.cuda.is_available() or torch.xpu.is_available(), "CPU training is not allowed."
     hps = utils.get_hparams()
 
+    # 检测设备类型
     if torch.cuda.is_available():
         n_gpus = torch.cuda.device_count()
+        device_type = 'cuda'
     elif torch.xpu.is_available():
         n_gpus = torch.xpu.device_count()
+        device_type = 'xpu'
     else:
         n_gpus = 1  # fallback to 1 if no GPU is available
-    os.environ['MASTER_ADDR'] = 'localhost'
+        device_type = 'cpu'
+    
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
     os.environ['MASTER_PORT'] = hps.train.port
 
     mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
@@ -57,20 +62,28 @@ def run(rank, n_gpus, hps):
         utils.check_git_hash(hps.model_dir)
         writer = SummaryWriter(log_dir=hps.model_dir)
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
-    
-    # for pytorch on win, backend use gloo    
-    # dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'nccl', init_method='env://', world_size=n_gpus, rank=rank)
-    if torch.cuda.is_available():
-        dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'nccl', init_method='env://', world_size=n_gpus, rank=rank)
-    elif torch.xpu.is_available():
-        dist.init_process_group(backend=  'gloo' if os.name == 'nt' else 'ccl', init_method='env://', world_size=n_gpus, rank=rank)
+
+    # 对于单GPU情况，不需要初始化分布式训练
+    if n_gpus > 1:  # 只在多GPU时初始化分布式训练
+        if torch.cuda.is_available():
+            backend = 'gloo' if os.name == 'nt' else 'nccl'
+            init_method = 'tcp://127.0.0.1:12355'
+            dist.init_process_group(backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
+        elif torch.xpu.is_available():
+            backend = 'gloo' if os.name == 'nt' else 'ccl'
+            init_method = 'tcp://127.0.0.1:12355'
+            dist.init_process_group(backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
+        else:
+            raise RuntimeError("No GPU or XPU available")
     else:
-        raise RuntimeError("No GPU or XPU available")
+        # 单GPU模式，设置主设备
+        if torch.cuda.is_available():
+            torch.cuda.set_device(rank)
+        elif torch.xpu.is_available():
+            torch.xpu.set_device(rank)
+    
     torch.manual_seed(hps.train.seed)
-    if torch.cuda.is_available():
-        torch.cuda.set_device(rank)
-    elif torch.xpu.is_available():
-        torch.xpu.set_device(rank)
+    
     collate_fn = TextAudioCollate()
     all_in_mem = hps.train.all_in_mem   # If you have enough memory, turn on this option to avoid disk IO and speed up training.
     train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps, all_in_mem=all_in_mem)
@@ -100,17 +113,19 @@ def run(rank, n_gpus, hps):
         hps.train.learning_rate,
         betas=hps.train.betas,
         eps=hps.train.eps)
-    # net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
-    # net_d = DDP(net_d, device_ids=[rank])
-    if torch.cuda.is_available():
-        net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
-        net_d = DDP(net_d, device_ids=[rank])
-    elif torch.xpu.is_available():
-        net_g = DDP(net_g, device_ids=[rank])
-        net_d = DDP(net_d, device_ids=[rank])
-    else:
-        net_g = DDP(net_g)
-        net_d = DDP(net_d)
+    
+    # 对于单GPU，不需要使用DDP包装
+    if n_gpus > 1:
+        if torch.cuda.is_available():
+            net_g = DDP(net_g, device_ids=[rank])  # , find_unused_parameters=True)
+            net_d = DDP(net_d, device_ids=[rank])
+        elif torch.xpu.is_available():
+            net_g = DDP(net_g, device_ids=[rank])
+            net_d = DDP(net_d, device_ids=[rank])
+        else:
+            net_g = DDP(net_g)
+            net_d = DDP(net_d)
+    # 如果是单GPU，直接使用原始模型
 
     skip_optimizer = False
     try:
@@ -134,7 +149,14 @@ def run(rank, n_gpus, hps):
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
-    scaler = GradScaler(enabled=hps.train.fp16_run)
+    # 修改：根据设备类型创建GradScaler
+    if torch.cuda.is_available():
+        scaler = GradScaler(enabled=hps.train.fp16_run)
+    elif torch.xpu.is_available():
+        scaler = GradScaler('xpu', enabled=hps.train.fp16_run)
+    else:
+        # CPU模式下不使用GradScaler，或者创建一个空的实现
+        scaler = GradScaler(enabled=False)
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
         # set up warm-up learning rate
@@ -186,7 +208,9 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             hps.data.mel_fmin,
             hps.data.mel_fmax)
         
-        with autocast(enabled=hps.train.fp16_run, dtype=half_type):
+        # 检测设备类型
+        device_type = 'xpu' if torch.xpu.is_available() else 'cuda'
+        with autocast(device_type, enabled=hps.train.fp16_run, dtype=half_type):
             y_hat, ids_slice, z_mask, \
             (z, z_p, m_p, logs_p, m_q, logs_q), pred_lf0, norm_lf0, lf0 = net_g(c, f0, uv, spec, g=g, c_lengths=lengths,
                                                                                 spec_lengths=lengths,vol = volume)
@@ -207,7 +231,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             # Discriminator
             y_d_hat_r, y_d_hat_g, _, _ = net_d(y, y_hat.detach())
 
-            with autocast(enabled=False, dtype=half_type):
+            with autocast(device_type, enabled=False, dtype=half_type):
                 loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
                 loss_disc_all = loss_disc
         
@@ -218,15 +242,24 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         scaler.step(optim_d)
         
 
-        with autocast(enabled=hps.train.fp16_run, dtype=half_type):
+        with autocast(device_type, enabled=hps.train.fp16_run, dtype=half_type):
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
-            with autocast(enabled=False, dtype=half_type):
+            with autocast(device_type, enabled=False, dtype=half_type):
                 loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
                 loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hps.train.c_kl
                 loss_fm = feature_loss(fmap_r, fmap_g)
                 loss_gen, losses_gen = generator_loss(y_d_hat_g)
-                loss_lf0 = F.mse_loss(pred_lf0, lf0) if net_g.module.use_automatic_f0_prediction else 0
+                
+                # 修改：检查模型是否被DDP包装
+                if hasattr(net_g, 'module'):
+                    # DDP包装的模型
+                    use_automatic_f0_prediction = net_g.module.use_automatic_f0_prediction
+                else:
+                    # 原始模型
+                    use_automatic_f0_prediction = net_g.use_automatic_f0_prediction
+                
+                loss_lf0 = F.mse_loss(pred_lf0, lf0) if use_automatic_f0_prediction else 0
                 loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl + loss_lf0
         optim_g.zero_grad()
         scaler.scale(loss_gen_all).backward()
@@ -261,7 +294,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                     "all/mel": utils.plot_spectrogram_to_numpy(mel[0].data.cpu().numpy())
                 }
 
-                if net_g.module.use_automatic_f0_prediction:
+                # 修改：同样检查模型是否被DDP包装
+                if hasattr(net_g, 'module'):
+                    use_automatic_f0_prediction = net_g.module.use_automatic_f0_prediction
+                else:
+                    use_automatic_f0_prediction = net_g.use_automatic_f0_prediction
+                
+                if use_automatic_f0_prediction:
                     image_dict.update({
                         "all/lf0": utils.plot_data_to_numpy(lf0[0, 0, :].cpu().numpy(),
                                                               pred_lf0[0, 0, :].detach().cpu().numpy()),
@@ -317,18 +356,28 @@ def evaluate(hps, generator, eval_loader, writer_eval):
                 hps.data.sampling_rate,
                 hps.data.mel_fmin,
                 hps.data.mel_fmax)
-            y_hat,_ = generator.module.infer(c, f0, uv, g=g,vol = volume)
+            
+            # 修改：检查模型是否被DDP包装
+            if hasattr(generator, 'module'):
+                # DDP包装的模型
+                y_hat,_ = generator.module.infer(c, f0, uv, g=g,vol = volume)
+            else:
+                # 原始模型
+                y_hat,_ = generator.infer(c, f0, uv, g=g,vol = volume)
 
-            y_hat_mel = mel_spectrogram_torch(
-                y_hat.squeeze(1).float(),
-                hps.data.filter_length,
-                hps.data.n_mel_channels,
-                hps.data.sampling_rate,
-                hps.data.hop_length,
-                hps.data.win_length,
-                hps.data.mel_fmin,
-                hps.data.mel_fmax
-            )
+            # 检测设备类型用于autocast
+            device_type = 'xpu' if torch.xpu.is_available() else 'cuda'
+            with autocast(device_type, enabled=False):  # 推理时不需要fp16
+                y_hat_mel = mel_spectrogram_torch(
+                    y_hat.squeeze(1).float(),
+                    hps.data.filter_length,
+                    hps.data.n_mel_channels,
+                    hps.data.sampling_rate,
+                    hps.data.hop_length,
+                    hps.data.win_length,
+                    hps.data.mel_fmin,
+                    hps.data.mel_fmax
+                )
 
             audio_dict.update({
                 f"gen/audio_{batch_idx}": y_hat[0],
