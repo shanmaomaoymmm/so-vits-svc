@@ -28,6 +28,21 @@ f0_min = 50.0
 f0_mel_min = 1127 * np.log(1 + f0_min / 700)
 f0_mel_max = 1127 * np.log(1 + f0_max / 700)
 
+def get_device_type():
+    """
+    检测可用的设备类型，优先检测CUDA而非XPU，以支持A770显卡
+    """
+    if torch.cuda.is_available():
+        return 'cuda'
+    elif torch.xpu.is_available():
+        # 设置Intel特定的环境变量
+        import os
+        os.environ['NEOReadDebugKeys'] = '1'
+        os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
+        return 'xpu'
+    else:
+        return 'cpu'
+
 def normalize_f0(f0, x_mask, uv, random_scale=True):
     # calculate means based on x_mask
     uv_sum = torch.sum(uv, dim=1, keepdim=True)
@@ -60,8 +75,11 @@ def plot_data_to_numpy(x, y):
     plt.tight_layout()
 
     fig.canvas.draw()
-    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # 修改：使用 buffer_rgba() 替代 tostring_rgb()
+    buf = fig.canvas.buffer_rgba()
+    data = np.asarray(buf)
+    # 只取RGB通道
+    data = data[:, :, :3]
     plt.close()
     return data
 
@@ -263,8 +281,11 @@ def plot_spectrogram_to_numpy(spectrogram):
   plt.tight_layout()
 
   fig.canvas.draw()
-  data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-  data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+  # 修改：使用 buffer_rgba() 替代 tostring_rgb()
+  buf = fig.canvas.buffer_rgba()
+  data = np.asarray(buf)
+  # 只取RGB通道
+  data = data[:, :, :3]
   plt.close()
   return data
 
@@ -292,8 +313,11 @@ def plot_alignment_to_numpy(alignment, info=None):
   plt.tight_layout()
 
   fig.canvas.draw()
-  data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-  data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+  # 修改：使用 buffer_rgba() 替代 tostring_rgb()
+  buf = fig.canvas.buffer_rgba()
+  data = np.asarray(buf)
+  # 只取RGB通道
+  data = data[:, :, :3]
   plt.close()
   return data
 

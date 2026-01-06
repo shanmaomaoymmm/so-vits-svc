@@ -3,8 +3,7 @@ import time
 import librosa
 import numpy as np
 import torch
-from torch import autocast
-from torch.xpu.amp import GradScaler
+from torch.amp import GradScaler, autocast
 
 from diffusion.logger import utils
 from diffusion.logger.saver import Saver
@@ -103,7 +102,13 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
     num_batches = len(loader_train)
     model.train()
     saver.log_info('======= start training =======')
-    scaler = GradScaler()
+    # 根据设备类型初始化GradScaler
+    if args.device == 'cuda' or args.device == 'xpu':
+        scaler = GradScaler(args.device, enabled=getattr(args.train, 'amp_enabled', True))
+    else:
+        # CPU或其他设备不使用GradScaler
+        scaler = GradScaler('cpu', enabled=False)
+    
     if args.train.amp_dtype == 'fp32':
         dtype = torch.float32
     elif args.train.amp_dtype == 'fp16':

@@ -129,10 +129,23 @@ class Svc(object):
         self.only_diffusion = only_diffusion
         self.shallow_diffusion = shallow_diffusion
         self.feature_retrieval = feature_retrieval
+        
+        # 优化设备检测逻辑，优先检测CUDA而非XPU，以支持A770显卡
         if device is None:
-            self.dev = torch.device("xpu" if torch.xpu.is_available() else "cpu")
+            # 优先检测CUDA而非XPU，以支持A770
+            if torch.cuda.is_available():
+                self.dev = torch.device("cuda")
+            elif torch.xpu.is_available():
+                self.dev = torch.device("xpu")
+                # 设置Intel特定的环境变量
+                import os
+                os.environ['NEOReadDebugKeys'] = '1'
+                os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
+            else:
+                self.dev = torch.device("cpu")
         else:
             self.dev = torch.device(device)
+            
         self.net_g_ms = None
         if not self.only_diffusion:
             self.hps_ms = utils.get_hparams_from_file(config_path,True)
@@ -194,6 +207,7 @@ class Svc(object):
             **self.hps_ms.model)
         _ = utils.load_checkpoint(self.net_g_path, self.net_g_ms, None)
         self.dtype = list(self.net_g_ms.parameters())[0].dtype
+        # 优化模型加载逻辑，支持A770显卡
         if "half" in self.net_g_path and (torch.cuda.is_available() or torch.xpu.is_available()):
             _ = self.net_g_ms.half().eval().to(self.dev)
         else:

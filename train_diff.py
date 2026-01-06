@@ -20,6 +20,14 @@ def parse_args(args=None, namespace=None):
         type=str,
         required=True,
         help="path to the config file")
+    
+    # 添加一个检查GPU可用性的参数
+    parser.add_argument(
+        "--check-gpu",
+        action='store_true',
+        help="Check GPU/XPU availability and exit"
+    )
+    
     return parser.parse_args(args=args, namespace=namespace)
 
 
@@ -27,10 +35,42 @@ if __name__ == '__main__':
     # parse commands
     cmd = parse_args()
     
+    if cmd.check_gpu:
+        # 检查GPU/XPU可用性
+        if torch.cuda.is_available():
+            print(f"CUDA devices available: {torch.cuda.device_count()}")
+            for i in range(torch.cuda.device_count()):
+                print(f"  - CUDA:{i}: {torch.cuda.get_device_name(i)}")
+        if torch.xpu.is_available():
+            print(f"XPU devices available: {torch.xpu.device_count()}")
+            # 设置Intel特定的环境变量
+            import os
+            os.environ['NEOReadDebugKeys'] = '1'
+            os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
+            for i in range(torch.xpu.device_count()):
+                print(f"  - XPU:{i}: Intel GPU")
+        if not (torch.cuda.is_available() or torch.xpu.is_available()):
+            print("No GPU or XPU devices available")
+        exit(0)
+    
     # load config
     args = utils.load_config(cmd.config)
     logger.info(' > config:'+ cmd.config)
     logger.info(' > exp:'+ args.env.expdir)
+    
+    # 检测设备类型 - 优先检测CUDA而非XPU，以支持A770
+    if torch.cuda.is_available():
+        args.device = 'cuda'
+        logger.info(' > Using CUDA backend')
+    elif torch.xpu.is_available():
+        args.device = 'xpu'
+        logger.info(' > Using XPU backend for Intel GPU')
+        # 设置Intel特定的环境变量
+        import os
+        os.environ['NEOReadDebugKeys'] = '1'
+        os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
+    else:
+        raise RuntimeError("No GPU or XPU available. Training requires a GPU.")
     
     # load vocoder
     vocoder = Vocoder(args.vocoder.type, args.vocoder.ckpt, device=args.device)
@@ -76,4 +116,3 @@ if __name__ == '__main__':
     
     # run
     train(args, initial_global_step, model, optimizer, scheduler, vocoder, loader_train, loader_valid)
-    
