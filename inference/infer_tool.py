@@ -281,11 +281,34 @@ class Svc(object):
               second_encoding = False,
               loudness_envelope_adjustment = 1
               ):
-        torchaudio.set_audio_backend("soundfile")
-        wav, sr = torchaudio.load(raw_path)
+        # torchaudio.set_audio_backend("soundfile")  # 移除不兼容的后端设置
+        # 使用librosa加载音频以避免兼容性问题
+        import librosa
+        import numpy as np
+        wav, sr = librosa.load(raw_path, sr=None)
+        # 确保音频是numpy数组格式并是一维的
+        wav = np.array(wav, dtype=np.float32)
+        
+        # 确保音频是一维数组
+        if hasattr(wav, 'shape') and wav.ndim != 1:
+            if wav.ndim == 2:
+                # 如果是多声道音频，转换为单声道
+                wav = librosa.to_mono(wav.T)
+            else:
+                # 其他情况取第一个维度
+                wav = wav.flatten()
+        
+        # 检查音频长度是否过短（建议至少0.1秒），如果太短则填充
+        min_length = int(self.target_sample * 0.1)  # 0.1秒
+        if len(wav) < min_length:
+            wav = np.pad(wav, (0, min_length - len(wav)), mode='constant')
+            print(f"Warning: Audio too short, padded to {min_length / self.target_sample:.2f}s")
+        
         if not hasattr(self,"audio_resample_transform") or self.audio16k_resample_transform.orig_freq != sr:
             self.audio_resample_transform = torchaudio.transforms.Resample(sr,self.target_sample)
-        wav = self.audio_resample_transform(wav).numpy()[0]
+        # 使用torch.FloatTensor转换音频数据，重采样，然后转回numpy数组
+        wav_tensor = self.audio_resample_transform(torch.FloatTensor(wav))
+        wav = wav_tensor.numpy()
         if spk_mix:
             c, f0, uv = self.get_unit_f0(wav, tran, 0, None, f0_filter,f0_predictor,cr_threshold=cr_threshold)
             n_frames = f0.size(1)
