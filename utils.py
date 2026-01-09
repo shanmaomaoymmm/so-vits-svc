@@ -28,6 +28,14 @@ f0_min = 50.0
 f0_mel_min = 1127 * np.log(1 + f0_min / 700)
 f0_mel_max = 1127 * np.log(1 + f0_max / 700)
 
+def scan_checkpoint_paths(dir_path, regex="G_*.pth"):
+    """
+    获取目录中所有匹配的检查点路径
+    """
+    f_list = glob.glob(os.path.join(dir_path, regex))
+    return f_list
+
+
 def get_device_type():
     """
     检测可用的设备类型，优先检测CUDA而非XPU，以支持A770显卡

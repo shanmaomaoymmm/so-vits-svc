@@ -32,6 +32,54 @@ start_time = time.time()
 # os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'
 
 
+def attempt_load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimizer=False):
+    """
+    尝试加载单个检查点，如果加载失败返回False
+    """
+    try:
+        print(f"Trying to load checkpoint: {checkpoint_path}")
+        model, optimizer, learning_rate, epoch_str = utils.load_checkpoint(
+            checkpoint_path, model, optimizer, skip_optimizer
+        )
+        print(f"Successfully loaded checkpoint: {checkpoint_path}")
+        return model, optimizer, learning_rate, epoch_str, True
+    except Exception as e:
+        print(f"Failed to load checkpoint: {checkpoint_path}, error: {str(e)}")
+        return model, optimizer, 0, 0, False
+
+
+def safe_load_latest_checkpoint(model_dir, model_name_pattern, model, optimizer=None, skip_optimizer=False):
+    """
+    安全地加载最新的可用检查点，如果最新检查点损坏则尝试次新的检查点
+    """
+    checkpoint_paths = utils.scan_checkpoint_paths(model_dir, model_name_pattern)
+    
+    if not checkpoint_paths:
+        print(f"No checkpoints found for pattern {model_name_pattern} in {model_dir}")
+        return model, optimizer, 0, 0
+    
+    # 按照迭代次数排序（从大到小）
+    checkpoint_paths.sort(key=lambda f: int("".join(filter(str.isdigit, f))), reverse=True)
+    
+    for idx, checkpoint_path in enumerate(checkpoint_paths):
+        model, optimizer, learning_rate, epoch_str, success = attempt_load_checkpoint(
+            checkpoint_path, model, optimizer, skip_optimizer
+        )
+        
+        if success:
+            # 成功加载后，更新全局步数
+            global_step_name = checkpoint_path
+            global_step_val = int(global_step_name[global_step_name.rfind("_") + 1:global_step_name.rfind(".")]) + 1
+            return model, optimizer, learning_rate, epoch_str, global_step_val
+        
+        # 如果这是最后一个检查点仍然失败，返回初始值
+        if idx == len(checkpoint_paths) - 1:
+            print("All checkpoints are corrupted, starting from scratch...")
+            return model, optimizer, 0, 0, 0
+    
+    return model, optimizer, 0, 0, 0
+
+
 def main():
     """Assume Single Node Multi GPUs Training Only"""
     # 检测设备类型 - 优先检测CUDA而非XPU，以支持A770
@@ -167,19 +215,34 @@ def run(rank, n_gpus, hps, device_type):
     # 如果是单GPU，直接使用原始模型
 
     skip_optimizer = False
+    
+    # 使用安全加载函数替代原有的加载逻辑
     try:
-        _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g,
-                                                   optim_g, skip_optimizer)
-        _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d,
-                                                   optim_d, skip_optimizer)
-        epoch_str = max(epoch_str, 1)
-        name=utils.latest_checkpoint_path(hps.model_dir, "D_*.pth")
-        global_step=int(name[name.rfind("_")+1:name.rfind(".")])+1
-        #global_step = (epoch_str - 1) * len(train_loader)
-    except Exception:
-        print("load old checkpoint failed...")
+        net_g, optim_g, learning_rate_g, epoch_str, global_step_g = safe_load_latest_checkpoint(
+            hps.model_dir, "G_*.pth", net_g, optim_g, skip_optimizer
+        )
+        net_d, optim_d, learning_rate_d, epoch_str_d, global_step_d = safe_load_latest_checkpoint(
+            hps.model_dir, "D_*.pth", net_d, optim_d, skip_optimizer
+        )
+        
+        # 确保两个模型的epoch_str和global_step一致
+        epoch_str = max(epoch_str, epoch_str_d, 1)
+        
+        # 如果global_step_g和global_step_d都大于0，使用较大的那个
+        if global_step_g > 0 and global_step_d > 0:
+            global_step = max(global_step_g, global_step_d)
+        elif global_step_g > 0:
+            global_step = global_step_g
+        elif global_step_d > 0:
+            global_step = global_step_d
+        else:
+            global_step = 0
+            
+    except Exception as e:
+        print(f"Error during checkpoint loading: {str(e)}")
         epoch_str = 1
         global_step = 0
+        
     if skip_optimizer:
         epoch_str = 1
         global_step = 0
@@ -189,10 +252,8 @@ def run(rank, n_gpus, hps, device_type):
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
     # 根据设备类型创建GradScaler
-    if device_type == 'cuda':
-        scaler = GradScaler("cuda", enabled=hps.train.fp16_run)
-    elif device_type == 'xpu':
-        scaler = GradScaler("xpu", enabled=hps.train.fp16_run)
+    if device_type in ['cuda', 'xpu']:
+        scaler = GradScaler(device_type, enabled=hps.train.fp16_run)
     else:
         # CPU模式下不使用GradScaler
         scaler = GradScaler("cpu", enabled=False)
@@ -387,6 +448,12 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             if global_step % hps.train.log_interval == 0:
                 lr = optim_g.param_groups[0]['lr']
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
+                
+                # 检查是否有任何损失值为nan
+                for i, loss in enumerate(losses):
+                    if torch.isnan(loss):
+                        raise ValueError(f' [x] NaN loss detected at step {global_step} in loss {i}: {losses[i]}')
+                
                 reference_loss=0
                 for i in losses:
                     reference_loss += i
@@ -431,14 +498,27 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 )
 
             if global_step % hps.train.eval_interval == 0:
-                evaluate(hps, net_g, eval_loader, writer_eval, device_type)
-                utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch,
-                                      os.path.join(hps.model_dir, "G_{}.pth".format(global_step)))
-                utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch,
-                                      os.path.join(hps.model_dir, "D_{}.pth".format(global_step)))
-                keep_ckpts = getattr(hps.train, 'keep_ckpts', 0)
-                if keep_ckpts > 0:
-                    utils.clean_checkpoints(path_to_models=hps.model_dir, n_ckpts_to_keep=keep_ckpts, sort_by_time=True)
+                # 再次检查损失是否为nan，确保在保存检查点之前没有nan
+                losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
+                has_nan = False
+                for i, loss in enumerate(losses):
+                    if torch.isnan(loss):
+                        print(f' [!] Skipping checkpoint save due to NaN in loss {i}: {losses[i]} at step {global_step}')
+                        has_nan = True
+                        break
+                
+                if not has_nan:
+                    evaluate(hps, net_g, eval_loader, writer_eval, device_type)
+                    utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch,
+                                          os.path.join(hps.model_dir, "G_{}.pth".format(global_step)))
+                    utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch,
+                                          os.path.join(hps.model_dir, "D_{}.pth".format(global_step)))
+                    keep_ckpts = getattr(hps.train, 'keep_ckpts', 0)
+                    if keep_ckpts > 0:
+                        utils.clean_checkpoints(path_to_models=hps.model_dir, n_ckpts_to_keep=keep_ckpts, sort_by_time=True)
+                else:
+                    # 抛出异常以停止训练
+                    raise ValueError(' [x] NaN loss detected, stopping training')
 
         global_step += 1
 
@@ -471,7 +551,7 @@ def evaluate(hps, generator, eval_loader, writer_eval, device_type):
             spec, y = spec[:1].to(device), y[:1].to(device)
             c = c[:1].to(device)
             f0 = f0[:1].to(device)
-            uv= uv[:1].to(device)
+            uv = uv[:1].to(device)
             if volume is not None:
                 volume = volume[:1].to(device)
             mel = spec_to_mel_torch(
