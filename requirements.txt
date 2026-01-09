@@ -47,9 +47,3 @@ langdetect
 
 # System utilities
 psutil
-
-# PyTorch ecosystem
---find-links https://download.pytorch.org/whl/xpu
-torch
-torchvision
-torchaudio

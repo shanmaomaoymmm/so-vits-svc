@@ -3,7 +3,7 @@
     "log_interval": 200,
     "eval_interval": 400,
     "seed": 1234,
-    "epochs": 300,
+    "epochs": 5000,
     "learning_rate": 0.0001,
     "betas": [
       0.8,
@@ -22,9 +22,9 @@
     "use_sr": true,
     "max_speclen": 512,
     "port": "8001",
-    "keep_ckpts": 5,
+    "keep_ckpts": 12,
     "all_in_mem": true,
-    "vol_aug": false
+    "vol_aug": true
   },
   "data": {
     "training_files": "filelists/train.txt",
@@ -95,13 +95,13 @@
     "vocoder_name": "nsf-hifigan",
     "speech_encoder": "vec768l12",
     "speaker_embedding": false,
-    "vol_embedding": false,
+    "vol_embedding": true,
     "use_depthwise_conv": false,
     "flow_share_parameter": false,
     "use_automatic_f0_prediction": true,
     "use_transformer_flow": false
   },
   "spk": {
-    "speaker0": 0
+    "huawu": 0
   }
 }

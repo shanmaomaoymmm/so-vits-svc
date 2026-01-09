@@ -243,6 +243,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         f0 = f0.to(rank, non_blocking=True)
         uv = uv.to(rank, non_blocking=True)
         lengths = lengths.to(rank, non_blocking=True)
+        volume = volume.to(rank, non_blocking=True) if volume is not None else None  # 确保volume也在正确的rank设备上
         mel = spec_to_mel_torch(
             spec,
             hps.data.filter_length,
@@ -265,6 +266,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         f0 = f0.to(device, non_blocking=True)
         uv = uv.to(device, non_blocking=True)
         lengths = lengths.to(device, non_blocking=True)
+        volume = volume.to(device, non_blocking=True) if volume is not None else None  # 确保volume也在正确的设备上
         mel = spec_to_mel_torch(
             spec,
             hps.data.filter_length,
