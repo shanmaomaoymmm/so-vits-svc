@@ -1,6 +1,8 @@
+<!-- 中文 -->
+
 # SoftVC VITS Singing Voice Conversion For Intel
 
-<!-- 中文 -->
+![wmm](doc/img/1701608234384.png)
 
 基于so-vits-svc模型的训练推理框架，适配Intel显卡支持。
 
@@ -327,6 +329,8 @@ python inference_main.py -m "logs/44k/G_<模型名称>.pth" -c "configs/config.j
 <!-- English -->
 
 # SoftVC VITS Singing Voice Conversion For Intel
+
+![wmm](doc/img/1701608234384.png)
 
 Training and inference framework based on so-vits-svc model, adapted for Intel graphics card support.
 
