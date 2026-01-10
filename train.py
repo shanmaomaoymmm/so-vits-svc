@@ -52,31 +52,35 @@ def safe_load_latest_checkpoint(model_dir, model_name_pattern, model, optimizer=
     """
     安全地加载最新的可用检查点，如果最新检查点损坏则尝试次新的检查点
     """
-    checkpoint_paths = utils.scan_checkpoint_paths(model_dir, model_name_pattern)
-    
+    checkpoint_paths = utils.scan_checkpoint_paths(
+        model_dir, model_name_pattern)
+
     if not checkpoint_paths:
-        print(f"No checkpoints found for pattern {model_name_pattern} in {model_dir}")
+        print(
+            f"No checkpoints found for pattern {model_name_pattern} in {model_dir}")
         return model, optimizer, 0, 0
-    
+
     # 按照迭代次数排序（从大到小）
-    checkpoint_paths.sort(key=lambda f: int("".join(filter(str.isdigit, f))), reverse=True)
-    
+    checkpoint_paths.sort(key=lambda f: int(
+        "".join(filter(str.isdigit, f))), reverse=True)
+
     for idx, checkpoint_path in enumerate(checkpoint_paths):
         model, optimizer, learning_rate, epoch_str, success = attempt_load_checkpoint(
             checkpoint_path, model, optimizer, skip_optimizer
         )
-        
+
         if success:
             # 成功加载后，更新全局步数
             global_step_name = checkpoint_path
-            global_step_val = int(global_step_name[global_step_name.rfind("_") + 1:global_step_name.rfind(".")]) + 1
+            global_step_val = int(global_step_name[global_step_name.rfind(
+                "_") + 1:global_step_name.rfind(".")]) + 1
             return model, optimizer, learning_rate, epoch_str, global_step_val
-        
+
         # 如果这是最后一个检查点仍然失败，返回初始值
         if idx == len(checkpoint_paths) - 1:
             print("All checkpoints are corrupted, starting from scratch...")
             return model, optimizer, 0, 0, 0
-    
+
     return model, optimizer, 0, 0, 0
 
 
@@ -96,8 +100,9 @@ def main():
         os.environ['NEOReadDebugKeys'] = '1'
         os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
     else:
-        raise RuntimeError("No CUDA or XPU device available. Training requires a GPU.")
-    
+        raise RuntimeError(
+            "No CUDA or XPU device available. Training requires a GPU.")
+
     assert n_gpus > 0, f"No GPU devices found. n_gpus: {n_gpus}"
 
     hps = utils.get_hparams()
@@ -115,18 +120,21 @@ def run(rank, n_gpus, hps, device_type):
         logger.info(hps)
         utils.check_git_hash(hps.model_dir)
         writer = SummaryWriter(log_dir=hps.model_dir)
-        writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
+        writer_eval = SummaryWriter(
+            log_dir=os.path.join(hps.model_dir, "eval"))
 
     # 对于单GPU情况，不需要初始化分布式训练
     if n_gpus > 1:  # 只在多GPU时初始化分布式训练
         if device_type == 'cuda':
             backend = 'gloo' if os.name == 'nt' else 'nccl'
             init_method = 'tcp://127.0.0.1:12355'
-            dist.init_process_group(backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
+            dist.init_process_group(
+                backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
         elif device_type == 'xpu':
             backend = 'gloo' if os.name == 'nt' else 'ccl'
             init_method = 'tcp://127.0.0.1:12355'
-            dist.init_process_group(backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
+            dist.init_process_group(
+                backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
         else:
             raise RuntimeError(f"Unsupported device type: {device_type}")
     else:
@@ -135,18 +143,21 @@ def run(rank, n_gpus, hps, device_type):
             torch.cuda.set_device(rank)
         elif device_type == 'xpu':
             torch.xpu.set_device(rank)
-    
+
     torch.manual_seed(hps.train.seed)
-    
+
     collate_fn = TextAudioCollate()
-    all_in_mem = hps.train.all_in_mem   # If you have enough memory, turn on this option to avoid disk IO and speed up training.
-    train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps, all_in_mem=all_in_mem)
-    
+    # If you have enough memory, turn on this option to avoid disk IO and speed up training.
+    all_in_mem = hps.train.all_in_mem
+    train_dataset = TextAudioSpeakerLoader(
+        hps.data.training_files, hps, all_in_mem=all_in_mem)
+
     # 优化数据加载器参数
-    num_workers = getattr(hps.train, 'num_workers', 8) if multiprocessing.cpu_count() >= 8 else min(multiprocessing.cpu_count(), 8)
+    num_workers = getattr(hps.train, 'num_workers', 8) if multiprocessing.cpu_count(
+    ) >= 8 else min(multiprocessing.cpu_count(), 8)
     if all_in_mem:
         num_workers = 0  # 如果数据全部加载到内存，不需要额外的worker
-    
+
     # 根据num_workers决定是否设置prefetch_factor
     train_loader_kwargs = {
         'dataset': train_dataset,
@@ -157,23 +168,25 @@ def run(rank, n_gpus, hps, device_type):
         'batch_size': hps.train.batch_size,
         'collate_fn': collate_fn
     }
-    
+
     # 只有当num_workers > 0时才设置prefetch_factor
     if num_workers > 0:
-        train_loader_kwargs['prefetch_factor'] = getattr(hps.train, 'prefetch_factor', 2)
-    
+        train_loader_kwargs['prefetch_factor'] = getattr(
+            hps.train, 'prefetch_factor', 2)
+
     train_loader = DataLoader(**train_loader_kwargs)
-    
+
     if rank == 0:
-        eval_dataset = TextAudioSpeakerLoader(hps.data.validation_files, hps, all_in_mem=all_in_mem,vol_aug = False)
+        eval_dataset = TextAudioSpeakerLoader(
+            hps.data.validation_files, hps, all_in_mem=all_in_mem, vol_aug=False)
         eval_loader = DataLoader(
-            eval_dataset, 
-            num_workers=1, 
+            eval_dataset,
+            num_workers=1,
             shuffle=False,
-            batch_size=1, 
+            batch_size=1,
             pin_memory=False,
             persistent_workers=False,
-            drop_last=False, 
+            drop_last=False,
             collate_fn=collate_fn
         )
 
@@ -184,7 +197,7 @@ def run(rank, n_gpus, hps, device_type):
         device = torch.device(f'xpu:{rank}')
     else:
         raise RuntimeError(f"Unsupported device type: {device_type}")
-    
+
     net_g = SynthesizerTrn(
         hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
@@ -200,11 +213,12 @@ def run(rank, n_gpus, hps, device_type):
         hps.train.learning_rate,
         betas=hps.train.betas,
         eps=hps.train.eps)
-    
+
     # 对于单GPU，不需要使用DDP包装
     if n_gpus > 1:
         if torch.cuda.is_available():
-            net_g = DDP(net_g, device_ids=[rank], find_unused_parameters=getattr(hps.train, 'find_unused_parameters', False))  # , find_unused_parameters=True)
+            net_g = DDP(net_g, device_ids=[rank], find_unused_parameters=getattr(
+                hps.train, 'find_unused_parameters', False))  # , find_unused_parameters=True)
             net_d = DDP(net_d, device_ids=[rank])
         elif torch.xpu.is_available():
             net_g = DDP(net_g, device_ids=[rank])
@@ -215,7 +229,7 @@ def run(rank, n_gpus, hps, device_type):
     # 如果是单GPU，直接使用原始模型
 
     skip_optimizer = False
-    
+
     # 使用安全加载函数替代原有的加载逻辑
     try:
         net_g, optim_g, learning_rate_g, epoch_str, global_step_g = safe_load_latest_checkpoint(
@@ -224,10 +238,10 @@ def run(rank, n_gpus, hps, device_type):
         net_d, optim_d, learning_rate_d, epoch_str_d, global_step_d = safe_load_latest_checkpoint(
             hps.model_dir, "D_*.pth", net_d, optim_d, skip_optimizer
         )
-        
+
         # 确保两个模型的epoch_str和global_step一致
         epoch_str = max(epoch_str, epoch_str_d, 1)
-        
+
         # 如果global_step_g和global_step_d都大于0，使用较大的那个
         if global_step_g > 0 and global_step_d > 0:
             global_step = max(global_step_g, global_step_d)
@@ -237,19 +251,21 @@ def run(rank, n_gpus, hps, device_type):
             global_step = global_step_d
         else:
             global_step = 0
-            
+
     except Exception as e:
         print(f"Error during checkpoint loading: {str(e)}")
         epoch_str = 1
         global_step = 0
-        
+
     if skip_optimizer:
         epoch_str = 1
         global_step = 0
 
     warmup_epoch = hps.train.warmup_epochs
-    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
-    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
+    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+        optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
+    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+        optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
     # 根据设备类型创建GradScaler
     if device_type in ['cuda', 'xpu']:
@@ -262,9 +278,11 @@ def run(rank, n_gpus, hps, device_type):
         # set up warm-up learning rate
         if epoch <= warmup_epoch:
             for param_group in optim_g.param_groups:
-                param_group['lr'] = hps.train.learning_rate / warmup_epoch * epoch
+                param_group['lr'] = hps.train.learning_rate / \
+                    warmup_epoch * epoch
             for param_group in optim_d.param_groups:
-                param_group['lr'] = hps.train.learning_rate / warmup_epoch * epoch
+                param_group['lr'] = hps.train.learning_rate / \
+                    warmup_epoch * epoch
         # training
         if rank == 0:
             train_and_evaluate(rank, epoch, hps, [net_g, net_d], [optim_g, optim_d], [scheduler_g, scheduler_d], scaler,
@@ -284,27 +302,30 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
     train_loader, eval_loader = loaders
     if writers is not None:
         writer, writer_eval = writers
-    
-    half_type = torch.bfloat16 if hps.train.half_type=="bf16" else torch.float16
+
+    half_type = torch.bfloat16 if hps.train.half_type == "bf16" else torch.float16
 
     # train_loader.batch_sampler.set_epoch(epoch)
     global global_step
 
     net_g.train()
     net_d.train()
-    
+
     # 获取梯度累积步数，以模拟更大的批次大小
     grad_accumulation_steps = getattr(hps.train, 'grad_accumulation_steps', 1)
-    
+
     for batch_idx, items in enumerate(train_loader):
         c, f0, spec, y, spk, lengths, uv, volume = items
         g = spk.to(rank, non_blocking=True)
-        spec, y = spec.to(rank, non_blocking=True), y.to(rank, non_blocking=True)
+        spec, y = spec.to(rank, non_blocking=True), y.to(
+            rank, non_blocking=True)
         c = c.to(rank, non_blocking=True)
         f0 = f0.to(rank, non_blocking=True)
         uv = uv.to(rank, non_blocking=True)
         lengths = lengths.to(rank, non_blocking=True)
-        volume = volume.to(rank, non_blocking=True) if volume is not None else None  # 确保volume也在正确的rank设备上
+        # 确保volume也在正确的rank设备上
+        volume = volume.to(
+            rank, non_blocking=True) if volume is not None else None
         mel = spec_to_mel_torch(
             spec,
             hps.data.filter_length,
@@ -312,7 +333,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             hps.data.sampling_rate,
             hps.data.mel_fmin,
             hps.data.mel_fmax)
-        
+
         # 根据设备类型将数据移动到对应设备
         if device_type == 'cuda':
             device = torch.device(f'cuda:{rank}')
@@ -320,14 +341,17 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             device = torch.device(f'xpu:{rank}')
         else:
             raise RuntimeError(f"Unsupported device type: {device_type}")
-        
+
         g = spk.to(device, non_blocking=True)
-        spec, y = spec.to(device, non_blocking=True), y.to(device, non_blocking=True)
+        spec, y = spec.to(device, non_blocking=True), y.to(
+            device, non_blocking=True)
         c = c.to(device, non_blocking=True)
         f0 = f0.to(device, non_blocking=True)
         uv = uv.to(device, non_blocking=True)
         lengths = lengths.to(device, non_blocking=True)
-        volume = volume.to(device, non_blocking=True) if volume is not None else None  # 确保volume也在正确的设备上
+        # 确保volume也在正确的设备上
+        volume = volume.to(
+            device, non_blocking=True) if volume is not None else None
         mel = spec_to_mel_torch(
             spec,
             hps.data.filter_length,
@@ -335,13 +359,14 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             hps.data.sampling_rate,
             hps.data.mel_fmin,
             hps.data.mel_fmax)
-        
+
         # Discriminator training
         y_hat, ids_slice, z_mask, \
-        (z, z_p, m_p, logs_p, m_q, logs_q), pred_lf0, norm_lf0, lf0 = net_g(c, f0, uv, spec, g=g, c_lengths=lengths,
-                                                                            spec_lengths=lengths,vol = volume)
+            (z, z_p, m_p, logs_p, m_q, logs_q), pred_lf0, norm_lf0, lf0 = net_g(c, f0, uv, spec, g=g, c_lengths=lengths,
+                                                                                spec_lengths=lengths, vol=volume)
 
-        y_mel = commons.slice_segments(mel, ids_slice, hps.train.segment_size // hps.data.hop_length)
+        y_mel = commons.slice_segments(
+            mel, ids_slice, hps.train.segment_size // hps.data.hop_length)
         y_hat_mel = mel_spectrogram_torch(
             y_hat.squeeze(1),
             hps.data.filter_length,
@@ -352,20 +377,22 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             hps.data.mel_fmin,
             hps.data.mel_fmax
         )
-        y = commons.slice_segments(y, ids_slice * hps.data.hop_length, hps.train.segment_size)  # slice
+        y = commons.slice_segments(
+            y, ids_slice * hps.data.hop_length, hps.train.segment_size)  # slice
 
         # Discriminator
         y_d_hat_r, y_d_hat_g, _, _ = net_d(y, y_hat.detach())
 
         with autocast(device_type=device_type, enabled=hps.train.fp16_run, dtype=half_type):
             with autocast(device_type=device_type, enabled=False, dtype=half_type):
-                loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
+                loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
+                    y_d_hat_r, y_d_hat_g)
                 loss_disc_all = loss_disc / grad_accumulation_steps  # 平均损失
-        
+
         # 只在累积步数的最后一步更新参数
         if batch_idx % grad_accumulation_steps == 0:
             optim_d.zero_grad()
-        
+
         # 根据设备类型选择是否使用GradScaler
         if device_type != 'xpu' and hps.train.fp16_run:
             # 非XPU设备且启用fp16时使用GradScaler
@@ -381,7 +408,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                         pass
                     else:
                         raise e
-            
+
             grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
             scaler.step(optim_d)
             scaler.update()
@@ -390,17 +417,17 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             loss_disc_all.backward()
             grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
             optim_d.step()
-            
 
         # Generator
         y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
         with autocast(device_type=device_type, enabled=hps.train.fp16_run, dtype=half_type):
             with autocast(device_type=device_type, enabled=False, dtype=half_type):
                 loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
-                loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hps.train.c_kl
+                loss_kl = kl_loss(z_p, logs_q, m_p, logs_p,
+                                  z_mask) * hps.train.c_kl
                 loss_fm = feature_loss(fmap_r, fmap_g)
                 loss_gen, losses_gen = generator_loss(y_d_hat_g)
-                
+
                 # 修改：检查模型是否被DDP包装
                 if hasattr(net_g, 'module'):
                     # DDP包装的模型
@@ -408,13 +435,15 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 else:
                     # 原始模型
                     use_automatic_f0_prediction = net_g.use_automatic_f0_prediction
-                
-                loss_lf0 = F.mse_loss(pred_lf0, lf0) if use_automatic_f0_prediction else 0
-                loss_gen_all = (loss_gen + loss_fm + loss_mel + loss_kl + loss_lf0) / grad_accumulation_steps
-        
+
+                loss_lf0 = F.mse_loss(
+                    pred_lf0, lf0) if use_automatic_f0_prediction else 0
+                loss_gen_all = (loss_gen + loss_fm + loss_mel +
+                                loss_kl + loss_lf0) / grad_accumulation_steps
+
         if batch_idx % grad_accumulation_steps == 0:
             optim_g.zero_grad()
-        
+
         # 根据设备类型选择是否使用GradScaler
         if device_type != 'xpu' and hps.train.fp16_run:
             # 非XPU设备且启用fp16时使用GradScaler
@@ -430,7 +459,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                         pass
                     else:
                         raise e
-            
+
             grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
             scaler.step(optim_g)
             scaler.update()
@@ -448,19 +477,21 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             if global_step % hps.train.log_interval == 0:
                 lr = optim_g.param_groups[0]['lr']
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
-                
+
                 # 检查是否有任何损失值为nan
                 for i, loss in enumerate(losses):
                     if torch.isnan(loss):
-                        raise ValueError(f' [x] NaN loss detected at step {global_step} in loss {i}: {losses[i]}')
-                
-                reference_loss=0
+                        raise ValueError(
+                            f' [x] NaN loss detected at step {global_step} in loss {i}: {losses[i]}')
+
+                reference_loss = 0
                 for i in losses:
                     reference_loss += i
                 logger.info('Train Epoch: {} [{:.0f}%]'.format(
                     epoch,
                     100. * batch_idx / len(train_loader)))
-                logger.info(f"Losses: {[x.item() for x in losses]}, step: {global_step}, lr: {lr}, reference_loss: {reference_loss}")
+                logger.info(
+                    f"Losses: {[x.item() for x in losses]}, step: {global_step}, lr: {lr}, reference_loss: {reference_loss}")
 
                 scalar_dict = {"loss/g/total": loss_gen_all * grad_accumulation_steps, "loss/d/total": loss_disc_all * grad_accumulation_steps, "learning_rate": lr,
                                "grad_norm_d": grad_norm_d, "grad_norm_g": grad_norm_g}
@@ -481,13 +512,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                     use_automatic_f0_prediction = net_g.module.use_automatic_f0_prediction
                 else:
                     use_automatic_f0_prediction = net_g.use_automatic_f0_prediction
-                
+
                 if use_automatic_f0_prediction:
                     image_dict.update({
                         "all/lf0": utils.plot_data_to_numpy(lf0[0, 0, :].cpu().numpy(),
-                                                              pred_lf0[0, 0, :].detach().cpu().numpy()),
+                                                            pred_lf0[0, 0, :].detach().cpu().numpy()),
                         "all/norm_lf0": utils.plot_data_to_numpy(lf0[0, 0, :].cpu().numpy(),
-                                                                   norm_lf0[0, 0, :].detach().cpu().numpy())
+                                                                 norm_lf0[0, 0, :].detach().cpu().numpy())
                     })
 
                 utils.summarize(
@@ -503,10 +534,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 has_nan = False
                 for i, loss in enumerate(losses):
                     if torch.isnan(loss):
-                        print(f' [!] Skipping checkpoint save due to NaN in loss {i}: {losses[i]} at step {global_step}')
+                        print(
+                            f' [!] Skipping checkpoint save due to NaN in loss {i}: {losses[i]} at step {global_step}')
                         has_nan = True
                         break
-                
+
                 if not has_nan:
                     evaluate(hps, net_g, eval_loader, writer_eval, device_type)
                     utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch,
@@ -515,10 +547,12 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                                           os.path.join(hps.model_dir, "D_{}.pth".format(global_step)))
                     keep_ckpts = getattr(hps.train, 'keep_ckpts', 0)
                     if keep_ckpts > 0:
-                        utils.clean_checkpoints(path_to_models=hps.model_dir, n_ckpts_to_keep=keep_ckpts, sort_by_time=True)
+                        utils.clean_checkpoints(
+                            path_to_models=hps.model_dir, n_ckpts_to_keep=keep_ckpts, sort_by_time=True)
                 else:
                     # 抛出异常以停止训练
-                    raise ValueError(' [x] NaN loss detected, stopping training')
+                    raise ValueError(
+                        ' [x] NaN loss detected, stopping training')
 
         global_step += 1
 
@@ -535,10 +569,10 @@ def evaluate(hps, generator, eval_loader, writer_eval, device_type):
     image_dict = {}
     audio_dict = {}
     with torch.no_grad():
-        half_type = torch.bfloat16 if hps.train.half_type=="bf16" else torch.float16
+        half_type = torch.bfloat16 if hps.train.half_type == "bf16" else torch.float16
         for batch_idx, items in enumerate(eval_loader):
-            c, f0, spec, y, spk, _, uv,volume = items
-            
+            c, f0, spec, y, spk, _, uv, volume = items
+
             # 根据设备类型将数据移动到对应设备
             if device_type == 'cuda':
                 device = torch.device('cuda:0')
@@ -546,7 +580,7 @@ def evaluate(hps, generator, eval_loader, writer_eval, device_type):
                 device = torch.device('xpu:0')
             else:
                 raise RuntimeError(f"Unsupported device type: {device_type}")
-            
+
             g = spk[:1].to(device)
             spec, y = spec[:1].to(device), y[:1].to(device)
             c = c[:1].to(device)
@@ -561,14 +595,14 @@ def evaluate(hps, generator, eval_loader, writer_eval, device_type):
                 hps.data.sampling_rate,
                 hps.data.mel_fmin,
                 hps.data.mel_fmax)
-            
+
             # 修改：检查模型是否被DDP包装
             if hasattr(generator, 'module'):
                 # DDP包装的模型
-                y_hat,_ = generator.module.infer(c, f0, uv, g=g,vol = volume)
+                y_hat, _ = generator.module.infer(c, f0, uv, g=g, vol=volume)
             else:
                 # 原始模型
-                y_hat,_ = generator.infer(c, f0, uv, g=g,vol = volume)
+                y_hat, _ = generator.infer(c, f0, uv, g=g, vol=volume)
 
             # 使用正确的设备类型进行autocast
             with autocast(device_type=device_type, enabled=False, dtype=half_type):
