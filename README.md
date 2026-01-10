@@ -273,6 +273,11 @@ python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8
 python train.py -c configs/config.json -m 44k
 ```
 
+可以使用`supervisord`进行进程守护训练，防止模型训练中断。
+```
+supervisord -n -c train_supervisord.conf
+```
+
 浅扩散模型训练
 ```bash
 python train.py -c configs/config.json -m 44k --use_diff
