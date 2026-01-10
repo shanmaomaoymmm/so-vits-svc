@@ -47,4 +47,3 @@ langdetect
 
 # System utilities
 psutil
-supervisor-win
