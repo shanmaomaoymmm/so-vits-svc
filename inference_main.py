@@ -1,5 +1,5 @@
 import logging
-
+import numpy as np
 import soundfile
 
 from inference import infer_tool
@@ -148,6 +148,18 @@ def main():
             if use_spk_mix:
                 spk = "spk_mix"
             res_path = f'results/{clean_name}_{key}_{spk}{cluster_name}_{isdiffusion}_{f0p}.{wav_format}'
+            
+            # 检查并清理音频数据，确保没有NaN或无穷大值
+            audio = np.array(audio)
+            if np.any(np.isnan(audio)) or np.any(np.isinf(audio)):
+                print(f"警告: 音频数据包含NaN或无穷大值，正在清理...")
+                audio = np.nan_to_num(audio)  # 将NaN替换为0，无穷大为大的有限数
+            
+            # 确保音频数据在正确的范围内
+            max_value = np.max(np.abs(audio))
+            if max_value > 1.0:
+                audio = audio / max_value * 0.99  # 留一点余量避免削波
+                
             soundfile.write(res_path, audio, svc_model.target_sample, format=wav_format)
             svc_model.clear_empty()
             
