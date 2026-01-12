@@ -52,7 +52,7 @@ py -3.11 -m venv venv
 激活虚拟环境
 ```bash
 # Windows
-venv\Scripts\activate.bat
+venv\Scripts\Activate.ps1
 
 # Linux
 source venv/bin/activate
@@ -65,6 +65,9 @@ source venv/bin/activate
 当前PyTorch已官方支持Intel显卡，因此只需安装PyTorch即可，无需再安装IPEX。
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
+
+# 下载慢或频繁终端可以使用南京大学镜像源
+pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu/
 ```
 
 **安装其余依赖**
