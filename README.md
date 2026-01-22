@@ -276,11 +276,13 @@ f0_predictor可选参数
 python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 ```
 
-加速预处理 如若您的数据集比较大，可以尝试添加--num_processes参数。
-```bash
-python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8
-```
-此时，所有的Workers会被自动分配到多个线程上。
+⚠️ 目前多线程功能存在严重缺陷，使用生成的训练文件进行训练时会出现无征兆闪退的现象，无法正常训练！
+
+~~加速预处理 如若您的数据集比较大，可以尝试添加--num_processes参数。~~
+<!-- ```bash -->
+~~python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8~~
+<!-- ``` -->
+~~此时，所有的Workers会被自动分配到多个线程上。~~
 
 执行完以上步骤后，`dataset`目录便是预处理完成的数据，此时`dataset_raw`文件夹可以删除。
 
@@ -489,7 +491,7 @@ py -3.11 -m venv venv
 Activate the virtual environment
 ```bash
 # Windows
-venv\Scripts\activate.bat
+venv\Scripts\Activate.ps1
 
 # Linux
 source venv/bin/activate
@@ -502,6 +504,9 @@ source venv/bin/activate
 Current PyTorch officially supports Intel graphics cards, so just install PyTorch, no need to install IPEX anymore.
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
+
+# Download slowly or frequently terminated, you can use Nanjing University mirror source
+pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu/
 ```
 
 **Install Other Dependencies**
@@ -710,11 +715,13 @@ If shallow diffusion function is needed, add the --use_diff parameter.
 python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 ```
 
-Accelerate preprocessing. If your dataset is large, you can try adding the --num_processes parameter.
-```bash
-python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8
-```
-At this point, all Workers will be automatically distributed to multiple threads.
+⚠️ Currently the multi-threading function has serious defects, using the generated training files for training will result in unexplained crashes, unable to train normally!
+
+~~Accelerate preprocessing If your dataset is large, you can try adding the --num_processes parameter.~~
+<!-- ```bash -->
+~~python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8~~
+<!-- ``` -->
+~~At this point, all Workers will be automatically distributed to multiple threads.~~
 
 After completing the above steps, the `dataset` directory contains the preprocessed data, and the `dataset_raw` folder can be deleted.
 
