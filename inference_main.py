@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import soundfile
+import re
 
 from inference import infer_tool
 from inference.infer_tool import Svc
@@ -103,6 +104,11 @@ def main():
                     use_spk_mix,
                     args.feature_retrieval)
     
+    # 从模型路径中提取训练步数
+    model_name = args.model_path.split("/")[-1].split("\\")[-1]  # 获取模型文件名（兼容正斜杠和反斜杠）
+    step_match = re.search(r'_(\d+)\.pth$', model_name)
+    model_step = step_match.group(1) if step_match else "unknown"
+    
     infer_tool.mkdir(["raw", "results"])
     
     if len(spk_mix_map)<=1:
@@ -147,7 +153,7 @@ def main():
                 isdiffusion = "diff"
             if use_spk_mix:
                 spk = "spk_mix"
-            res_path = f'results/{clean_name}_{key}_{spk}{cluster_name}_{isdiffusion}_{f0p}.{wav_format}'
+            res_path = f'results/{clean_name}_{key}_{spk}{cluster_name}_{isdiffusion}_{f0p}_{model_step}.{wav_format}'
             
             # 检查并清理音频数据，确保没有NaN或无穷大值
             audio = np.array(audio)
