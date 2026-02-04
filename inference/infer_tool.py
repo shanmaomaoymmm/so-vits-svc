@@ -138,7 +138,6 @@ class Svc(object):
             elif torch.xpu.is_available():
                 self.dev = torch.device("xpu")
                 # 设置Intel特定的环境变量
-                import os
                 os.environ['NEOReadDebugKeys'] = '1'
                 os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
             else:
