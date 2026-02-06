@@ -30,13 +30,12 @@
 
 本项目使用Python3.11，理论支持更高Python版本，但尚未进行测试。  
 由于PyTorch+XPU最低支持Python3.10，因此需要安装Python3.10及以上的Python版本。
-Windows
 ```bash
 # Windows
 winget install --id Python.Python.3.11
 
 # Ubuntu
-sudo apt install python3.11 python3.11-venv
+sudo apt install python3.11 python3.11-dev python3.11-venv
 
 # Fedora
 sudo dnf install python3.11 python3.11-devel python3.11-pip
@@ -46,7 +45,11 @@ sudo dnf install python3.11 python3.11-devel python3.11-pip
 
 在项目根目录下执行终端命令创建虚拟环境
 ```bash
+# Windows
 py -3.11 -m venv venv
+
+# Linux
+python3.11 -m venv venv
 ```
 
 激活虚拟环境
@@ -66,8 +69,11 @@ source venv/bin/activate
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
 
-# 下载慢或频繁终端可以使用南京大学镜像源
-pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu/
+# 下载慢或频繁终端可以使用镜像源下载
+# 南京大学
+pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu
+# 上海交通大学
+pip install torch torchvision torchaudio --index-url https://mirror.sjtu.edu.cn/pytorch-wheels/xpu
 ```
 
 **安装其余依赖**
@@ -316,8 +322,14 @@ pip install supervisor-win
 pip install supervisor-win
 # 主模型训练
 supervisord -n -c train_supervisord.conf
+
 # 浅扩散模型训练
 supervisord -n -c train_supervisord_diff.conf
+```
+
+可以使用TensorBoard监控训练状态
+```bash
+tensorboard --logdir logs/44k --bind_all
 ```
 
 模型训练结束后，模型文件保存在`logs/44k`目录下，扩散模型在`logs/44k/diffusion`下
@@ -397,7 +409,7 @@ python inference_main.py -m "logs/44k/G_<模型名称>.pth" -c "configs/config.j
 训练：
 
 首先需要在生成 hubert 与 f0 后执行：
-```shell
+```bash
 python train_index.py -c configs/config.json
 ```
 
@@ -427,6 +439,12 @@ python compress_model.py -c="configs/config.json" -i="logs/44k/G_<模型名称>.
 5. 等待执行完毕，在你的项目文件夹下会生成一个`aziplayer_SoVits.onnx`，即为导出的模型。
 
 注意：Hubert Onnx模型请使用MoeSS提供的模型，目前无法自行导出（fairseq中Hubert有不少onnx不支持的算子和涉及到常量的东西，在导出时会报错或者导出的模型输入输出shape和结果都有问题）
+
+## 🛑 已知问题
+
+1. 在Ubuntu等Linux系统下，模型训练会出现显存溢出的情况，致使模型无法正常训练。相较于在Windows下进行训练，在Linux下训练时请将batch_size调小。
+2. 生成hubert与f0功能如果使用多线程配置生成预处理文件，则训练时会出现无征兆闪退现象。
+3. webUI.py基本不可用，运行会出现浏览器无限加载的情况。
 
 ## 🔗 参考项目及文献
 
@@ -469,13 +487,12 @@ This project is based on the [So-Vits-SVC](https://github.com/svc-develop-team/s
 
 This project uses Python 3.11, theoretically supports higher Python versions, but has not been tested yet.  
 Since PyTorch+XPU requires a minimum of Python 3.10, you need to install Python 3.10 or above.
-Windows
 ```bash
 # Windows
 winget install --id Python.Python.3.11
 
 # Ubuntu
-sudo apt install python3.11 python3.11-venv
+sudo apt install python3.11 python3.11-dev python3.11-venv
 
 # Fedora
 sudo dnf install python3.11 python3.11-devel python3.11-pip
@@ -485,11 +502,15 @@ sudo dnf install python3.11 python3.11-devel python3.11-pip
 
 Execute terminal commands in the project root directory to create a virtual environment
 ```bash
+# Windows
 py -3.11 -m venv venv
+
+# Linux
+python3.11 -m venv venv
 ```
 
 Activate the virtual environment
-```bash
+```
 # Windows
 venv\Scripts\Activate.ps1
 
@@ -505,8 +526,11 @@ Current PyTorch officially supports Intel graphics cards, so just install PyTorc
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
 
-# Download slowly or frequently terminated, you can use Nanjing University mirror source
-pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu/
+# Download slowly or frequently terminated, you can use mirror sources to download
+# Nanjing University
+pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu
+# Shanghai Jiao Tong University
+pip install torch torchvision torchaudio --index-url https://mirror.sjtu.edu.cn/pytorch-wheels/xpu
 ```
 
 **Install Other Dependencies**
@@ -519,7 +543,7 @@ pip install -r requirements.txt
 
 ### Encoder
 
-Select one of the following encoders to use
+The following encoders need to select one to use
 - "vec768l12"
 - "vec256l9"
 - "vec256l9-onnx"
@@ -536,7 +560,7 @@ Select one of the following encoders to use
 
 #### 1. If using contentvec as audio encoder (recommended)
 
-vec768l12 and vec256l9 require this encoder, please select **one of** the following two links to download. 
+vec768l12 and vec256l9 require this encoder, please select **one of** the following two links to download.
 
 + [checkpoint_best_legacy_500.pt](https://ibm.box.com/s/z1wgl1stco8ffooyatzdwsqn2psd9lrr)
 + [hubert_base.pt](https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/hubert_base.pt)
@@ -550,8 +574,8 @@ Place it in the `pretrain` directory.
 
 #### 3. If using Whisper-ppg as audio encoder
 
-+ Download the model [medium.pt](https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt), this model fits `whisper-ppg`.
-+ Download the model [large-v2.pt](https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt), this model fits `whisper-ppg-large`.
++ Download the model [medium.pt](https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt), this model adapts to `whisper-ppg`.
++ Download the model [large-v2.pt](https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt), this model adapts to `whisper-ppg-large`.
 
 Place them in the `pretrain` directory.
 
@@ -567,7 +591,7 @@ Place it in the `pretrain` directory.
 
 #### 6. If using WavLM as audio encoder
 
-Download the model [WavLM-Base+.pt](https://valle.blob.core.windows.net/share/wavlm/WavLM-Base+.pt?sv=2020-08-04&st=2023-03-01T07%3A51%3A05Z&se=2033-03-02T07%3A51%3A00Z&sr=c&sp=rl&sig=QJXmSJG9DbMKf48UDIU1MfzIro8HQOf3sqlNXiflY1I%3D), this model fits `wavlmbase+`.  
+Download the model [WavLM-Base+.pt](https://valle.blob.core.windows.net/share/wavlm/WavLM-Base+.pt?sv=2020-08-04&st=2023-03-01T07%3A51%3A05Z&se=2033-03-02T07%3A51%3A00Z&sr=c&sp=rl&sig=QJXmSJG9DbMKf48UDIU1MfzIro8HQOf3sqlNXiflY1I%3D), this model adapts to `wavlmbase+`.  
 Place it in the `pretrain` directory.
 
 #### 7. If using OnnxHubert/ContentVec as audio encoder
@@ -755,8 +779,14 @@ Model training
 pip install supervisor-win
 # Main model training
 supervisord -n -c train_supervisord.conf
+
 # Shallow diffusion model training
 supervisord -n -c train_supervisord_diff.conf
+```
+
+You can use TensorBoard to monitor training status
+```bash
+tensorboard --logdir logs/44k --bind_all
 ```
 
 After model training is completed, model files are saved in the `logs/44k` directory, and the diffusion model is under `logs/44k/diffusion`
@@ -767,7 +797,7 @@ After model training is completed, model files are saved in the `logs/44k` direc
 
 Use `inference_main.py` for inference
 ```bash
-python inference_main.py -m "logs/44k/G_<model_name>.pth" -c "configs/config.json" -n "<input_audio>.wav" -t 0 -s "<speaker>"
+python inference_main.py -m "logs/44k/G_<模型名称>.pth" -c "configs/config.json" -n "<输入音频>.wav" -t 0 -s "<说话人>"
 ```
 
 Required parts
@@ -802,12 +832,12 @@ Note: If using whisper-ppg audio encoder for inference, you need to set --clip t
 ### f0 Predictor Comparison
 
 Following are the pros and cons of each f0 predictor algorithm during inference:
-| Predictor |                      Advantages                       |                     Disadvantages                     |
-| :-------: | :-----------------------------: | :------------------------------------------: |
-|    pm     |         Fast speed, low usage         |                 Prone to silence                 |
-|   crepe   |        Basically no silence        | High VRAM usage,自带 mean filter, therefore may cause pitch drift |
-|    dio    |               -               |                   May go out of tune                   |
-| harvest |       Better performance in bass part       |           Other ranges are not as good as other algorithms           |
+| Predictor |              Advantages              |                     Disadvantages                     |
+| :-----: | :----------------------------: | :------------------------------------------: |
+|   pm    |         Fast speed, low usage         |                 Easy to appear mute                 |
+|  crepe  |        Basically no mute        | High VRAM usage, comes with mean filter, therefore may cause pitch drift |
+|   dio   |               -                |                   May go out of tune                   |
+| harvest |       Better performance in bass part       |           Other frequency ranges are not as good as other algorithms           |
 |  rmvpe  | Hexagon warrior, currently the most perfect predictor |     Almost no disadvantages (extreme long low notes may make mistakes)     |
 
 ### Automatic f0 Prediction (Optional)
@@ -835,7 +865,7 @@ Similar to the clustering approach, it can reduce timbre leakage, with slightly 
 Training:
 
 First execute after generating hubert and f0:
-```shell
+```bash
 python train_index.py -c configs/config.json
 ```
 
@@ -850,7 +880,7 @@ Inference:
 
 The generated model contains information required for continued training. If you confirm that you will no longer train, you can remove this part of the information from the model to get a final model approximately 1/3 the size.
 ```bash
-python compress_model.py -c="configs/config.json" -i="logs/44k/G_<model_name>.pth" -o="logs/44k/release.pth"
+python compress_model.py -c="configs/config.json" -i="logs/44k/G_<模型名称>.pth" -o="logs/44k/release.pth"
 ```
 
 ## 📤 ONNX Export
@@ -859,12 +889,18 @@ python compress_model.py -c="configs/config.json" -i="logs/44k/G_<model_name>.pt
 2. Create a new folder in the `checkpoints` folder as the project folder, name the folder as your project name, such as `aziplayer`;
 3. Rename your model to `model.pth`, the configuration file to `config.json`, and place them in the `aziplayer` folder you just created;
 4. Run `onnx_export.py`:
-   ```bash
+   ```
    python onnx_export.py
    ```
 5. Wait for completion, a `aziplayer_SoVits.onnx` will be generated in your project folder, which is the exported model.
 
 Note: Use the Hubert Onnx model provided by MoeSS, currently unable to export on your own (the Hubert in fairseq has many operators not supported by ONNX and involves constants that would cause errors during export or result in problems with the input/output shapes and results of the exported model)
+
+## 🛑 Known Issues
+
+1. On Ubuntu and other Linux systems, model training will encounter memory overflow situations, causing the model to fail to train normally. Compared to training on Windows, please reduce the batch_size when training on Linux.
+2. If the hubert and f0 generation function uses multi-threading configuration to generate preprocessing files, crashes will occur during training.
+3. webUI.py is basically unusable, running will cause infinite browser loading.
 
 ## 🔗 Reference Projects and Literature
 
