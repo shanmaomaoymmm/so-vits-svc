@@ -267,6 +267,16 @@ def run(rank, n_gpus, hps, device_type):
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
         optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
+    # 针对XPU设备禁用fp16_run功能，因为XPU可能存在混合精度训练的兼容性问题
+    if device_type == 'xpu':
+        if hps.train.fp16_run:
+            print("Detected XPU device, disabling fp16_run for compatibility...")
+            hps.train.fp16_run = False
+        # 额外的安全检查
+        if hasattr(hps.train, 'half_type') and hps.train.half_type != 'fp32':
+            print("Setting half_type to fp32 for XPU compatibility...")
+            hps.train.half_type = 'fp32'
+
     # 根据设备类型创建GradScaler
     if device_type in ['cuda', 'xpu']:
         scaler = GradScaler(device_type, enabled=hps.train.fp16_run)
@@ -424,8 +434,10 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             with autocast(device_type=device_type, enabled=False, dtype=half_type):
                 loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
                 loss_kl = kl_loss(z_p, logs_q, m_p, logs_p,
-                                  z_mask) * hps.train.c_kl
-                loss_fm = feature_loss(fmap_r, fmap_g)
+                                      z_mask) * hps.train.c_kl
+                # 添加c_fm权重控制
+                c_fm = getattr(hps.train, 'c_fm', 1.0)
+                loss_fm = feature_loss(fmap_r, fmap_g) * c_fm
                 loss_gen, losses_gen = generator_loss(y_d_hat_g)
 
                 # 修改：检查模型是否被DDP包装
@@ -466,7 +478,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         else:
             # XPU设备或未启用fp16时，直接进行反向传播
             loss_gen_all.backward()
-            grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
+            # 添加梯度裁剪以提高稳定性
+            grad_norm_g = torch.nn.utils.clip_grad_norm_(net_g.parameters(), max_norm=1.0)
             optim_g.step()
         # 梯度累积：只有在累积步数的最后一步才增加global_step和进行日志记录
         if batch_idx % grad_accumulation_steps != 0:

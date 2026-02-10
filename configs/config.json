@@ -1,9 +1,9 @@
 {
   "train": {
     "log_interval": 200,
-    "eval_interval": 200,
+    "eval_interval": 1000,
     "seed": 1234,
-    "epochs": 5000,
+    "epochs": 10000,
     "learning_rate": 0.0001,
     "betas": [
       0.8,
@@ -17,12 +17,13 @@
     "segment_size": 10240,
     "init_lr_ratio": 1,
     "warmup_epochs": 0,
-    "c_mel": 45,
-    "c_kl": 0.8,
+    "c_mel": 25,
+    "c_kl": 1.0,
+    "c_fm": 0.5,
     "use_sr": true,
     "max_speclen": 512,
     "port": "8001",
-    "keep_ckpts": 12,
+    "keep_ckpts": 24,
     "all_in_mem": true,
     "vol_aug": true
   },
