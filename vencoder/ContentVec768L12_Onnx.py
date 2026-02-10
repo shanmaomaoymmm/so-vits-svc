@@ -14,8 +14,8 @@ class ContentVec768L12_Onnx(SpeechEncoder):
         else:
             self.dev = torch.device(device)
 
-        if device == 'cuda' or device == torch.device("cuda") or device == 'xpu' or device == torch.device("xpu"):
-            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        if device == 'xpu' or device == torch.device("xpu"):
+            providers = ['DnnlExecutionProvider', 'CPUExecutionProvider']
         else:
             providers = ['CPUExecutionProvider']
             

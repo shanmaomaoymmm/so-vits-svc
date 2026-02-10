@@ -107,10 +107,7 @@ def process_batch(file_chunk, f0p, diff=False, mel_extractor=None, device="cpu")
     logger.info("Loading speech encoder for content...")
     rank = mp.current_process()._identity
     rank = rank[0] if len(rank) > 0 else 0
-    if torch.cuda.is_available():
-        gpu_id = rank % torch.cuda.device_count()
-        device = torch.device(f"cuda:{gpu_id}")
-    elif torch.xpu.is_available():
+    if torch.xpu.is_available():
         device = torch.device("xpu")
     logger.info(f"Rank {rank} uses device {device}")
     hmodel = utils.get_speech_encoder(speech_encoder, device=device)

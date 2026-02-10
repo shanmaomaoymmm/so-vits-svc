@@ -38,11 +38,9 @@ def scan_checkpoint_paths(dir_path, regex="G_*.pth"):
 
 def get_device_type():
     """
-    检测可用的设备类型，优先检测CUDA而非XPU，以支持A770显卡
+    检测可用的设备类型，仅支持XPU设备
     """
-    if torch.cuda.is_available():
-        return 'cuda'
-    elif torch.xpu.is_available():
+    if torch.xpu.is_available():
         # 设置Intel特定的环境变量
         import os
         os.environ['NEOReadDebugKeys'] = '1'

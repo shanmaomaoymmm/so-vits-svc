@@ -130,12 +130,9 @@ class Svc(object):
         self.shallow_diffusion = shallow_diffusion
         self.feature_retrieval = feature_retrieval
         
-        # 优化设备检测逻辑，优先检测CUDA而非XPU，以支持A770显卡
+        # 设备检测逻辑 - 仅支持XPU设备
         if device is None:
-            # 优先检测CUDA而非XPU，以支持A770
-            if torch.cuda.is_available():
-                self.dev = torch.device("cuda")
-            elif torch.xpu.is_available():
+            if torch.xpu.is_available():
                 self.dev = torch.device("xpu")
                 # 设置Intel特定的环境变量
                 os.environ['NEOReadDebugKeys'] = '1'
@@ -206,8 +203,8 @@ class Svc(object):
             **self.hps_ms.model)
         _ = utils.load_checkpoint(self.net_g_path, self.net_g_ms, None)
         self.dtype = list(self.net_g_ms.parameters())[0].dtype
-        # 优化模型加载逻辑，支持A770显卡
-        if "half" in self.net_g_path and (torch.cuda.is_available() or torch.xpu.is_available()):
+        # 模型加载逻辑 - 仅支持XPU设备
+        if "half" in self.net_g_path and torch.xpu.is_available():
             _ = self.net_g_ms.half().eval().to(self.dev)
         else:
             _ = self.net_g_ms.eval().to(self.dev)
@@ -376,10 +373,8 @@ class Svc(object):
         return audio, audio.shape[-1], n_frames
 
     def clear_empty(self):
-        # clean up vram
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        elif torch.xpu.is_available():
+        # clean up vram for XPU
+        if torch.xpu.is_available():
             torch.xpu.empty_cache()
 
     def unload_model(self):

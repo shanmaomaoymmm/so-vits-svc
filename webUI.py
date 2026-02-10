@@ -34,15 +34,13 @@ debug = False
 
 local_model_root = './trained'
 
-cuda = {}
-if torch.cuda.is_available():
-    for i in range(torch.cuda.device_count()):
-        device_name = torch.cuda.get_device_properties(i).name
-        cuda[f"CUDA:{i} {device_name}"] = f"cuda:{i}"
-elif torch.xpu.is_available():
+xpu = {}
+if torch.xpu.is_available():
     for i in range(torch.xpu.device_count()):
-        device_name = torch.xpu.get_device_name(i)
-        cuda[f"XPU:{i} {device_name}"] = f"xpu:{i}"
+        device_name = torch.xpu.get_device_properties(i).name
+        xpu[f"XPU:{i} {device_name}"] = f"xpu:{i}"
+else:
+    xpu = {"CPU": "cpu"}
 
 def upload_mix_append_file(files,sfiles):
     try:
@@ -86,7 +84,7 @@ def updata_mix_info(files):
 def modelAnalysis(model_path,config_path,cluster_model_path,device,enhance,diff_model_path,diff_config_path,only_diffusion,use_spk_mix,local_model_enabled,local_model_selection):
     global model
     try:
-        device = cuda[device] if "CUDA" in device or "XPU" in device else device
+        device = xpu[device] if "XPU" in device else device
         cluster_filepath = os.path.split(cluster_model_path.name) if cluster_model_path is not None else "no_cluster"
         # get model and config path
         if (local_model_enabled):
@@ -111,10 +109,8 @@ def modelAnalysis(model_path,config_path,cluster_model_path,device,enhance,diff_
                 feature_retrieval = fr
                 )
         spks = list(model.spk2id.keys())
-        if "cuda" in str(model.dev):
-            device_name = torch.cuda.get_device_properties(model.dev).name
-        elif "xpu" in str(model.dev):
-            device_name = torch.xpu.get_device_name(model.dev)
+        if "xpu" in str(model.dev):
+            device_name = torch.xpu.get_device_properties(model.dev).name
         else:
             device_name = str(model.dev)
         msg = f"成功加载模型到设备{device_name}上\n"
@@ -145,9 +141,7 @@ def modelUnload():
     else:
         model.unload_model()
         model = None
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        elif torch.xpu.is_available():
+        if torch.xpu.is_available():
             torch.xpu.empty_cache()
         return sid.update(choices = [],value=""),"模型卸载完毕!"
     
@@ -310,7 +304,7 @@ with gr.Blocks() as app:
                         diff_model_path = gr.File(label="选择扩散模型文件")
                         diff_config_path = gr.File(label="选择扩散模型配置文件")
                     cluster_model_path = gr.File(label="选择聚类模型或特征检索文件（没有可以不选）")
-                    device = gr.Dropdown(label="推理设备，默认为自动选择CPU和GPU", choices=["Auto",*cuda.keys(),"cpu"], value="Auto")
+                    device = gr.Dropdown(label="推理设备", choices=["Auto",*xpu.keys(),"cpu"], value="Auto")
                     enhance = gr.Checkbox(label="是否使用NSF_HIFIGAN增强,该选项对部分训练集少的模型有一定的音质增强效果，但是对训练好的模型有反面效果，默认关闭", value=False)
                     only_diffusion = gr.Checkbox(label="是否使用全扩散推理，开启后将不使用So-VITS模型，仅使用扩散模型进行完整扩散推理，默认关闭", value=False)
                 with gr.Column():

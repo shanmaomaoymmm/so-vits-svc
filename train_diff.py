@@ -36,11 +36,7 @@ if __name__ == '__main__':
     cmd = parse_args()
     
     if cmd.check_gpu:
-        # 检查GPU/XPU可用性
-        if torch.cuda.is_available():
-            print(f"CUDA devices available: {torch.cuda.device_count()}")
-            for i in range(torch.cuda.device_count()):
-                print(f"  - CUDA:{i}: {torch.cuda.get_device_name(i)}")
+        # 检查XPU可用性
         if torch.xpu.is_available():
             print(f"XPU devices available: {torch.xpu.device_count()}")
             # 设置Intel特定的环境变量
@@ -49,8 +45,8 @@ if __name__ == '__main__':
             os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
             for i in range(torch.xpu.device_count()):
                 print(f"  - XPU:{i}: Intel GPU")
-        if not (torch.cuda.is_available() or torch.xpu.is_available()):
-            print("No GPU or XPU devices available")
+        else:
+            print("No XPU devices available")
         exit(0)
     
     # load config
@@ -58,11 +54,8 @@ if __name__ == '__main__':
     logger.info(' > config:'+ cmd.config)
     logger.info(' > exp:'+ args.env.expdir)
     
-    # 检测设备类型 - 优先检测CUDA而非XPU，以支持A770
-    if torch.cuda.is_available():
-        args.device = 'cuda'
-        logger.info(' > Using CUDA backend')
-    elif torch.xpu.is_available():
+    # 检测设备类型 - 仅支持XPU设备
+    if torch.xpu.is_available():
         args.device = 'xpu'
         logger.info(' > Using XPU backend for Intel GPU')
         # 设置Intel特定的环境变量
@@ -70,7 +63,7 @@ if __name__ == '__main__':
         os.environ['NEOReadDebugKeys'] = '1'
         os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
     else:
-        raise RuntimeError("No GPU or XPU available. Training requires a GPU.")
+        raise RuntimeError("No XPU available. Training requires an Intel GPU.")
     
     # load vocoder
     vocoder = Vocoder(args.vocoder.type, args.vocoder.ckpt, device=args.device)
@@ -100,9 +93,7 @@ if __name__ == '__main__':
     scheduler = lr_scheduler.StepLR(optimizer, step_size=args.train.decay_step, gamma=args.train.gamma,last_epoch=initial_global_step-2)
     
     # device
-    if args.device == 'cuda':
-        torch.cuda.set_device(args.env.gpu_id)
-    elif args.device == 'xpu':
+    if args.device == 'xpu':
         torch.xpu.set_device(args.env.gpu_id)
     model.to(args.device)
     

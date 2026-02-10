@@ -79,21 +79,14 @@ class KMeansGPU:
     centroids: torch.Tensor, shape: [n_clusters, n_features]
       cluster centroids
   '''
-  def __init__(self, n_clusters, max_iter=200, tol=1e-4, verbose=0, mode="euclidean",device=torch.device("cuda:0")):
+  def __init__(self, n_clusters, max_iter=200, tol=1e-4, verbose=0, mode="euclidean",device=torch.device("xpu:0")):
     self.n_clusters = n_clusters
     self.max_iter = max_iter
     self.tol = tol
     self.verbose = verbose
     self.mode = mode
     self.device=device
-    if device.type == 'cuda':
-        # 使用 torch.cuda 获取 GPU 内存信息
-        gpu_memory = torch.cuda.get_device_properties(device.index).total_memory
-        # 计算可用内存，使用总内存的一个比例作为估计值
-        available_memory = gpu_memory * 0.8  # 假设80%为可用内存
-        self.minibatch = int(33e6/self.n_clusters*available_memory/ 1024 / 1024 / 1024)
-        print("gpu_memory/GB:", gpu_memory/ 1024 / 1024 / 1024,"minibatch:",self.minibatch)
-    elif device.type == 'xpu':
+    if device.type == 'xpu':
         # XPU设备使用不同的内存管理方式
         xpu_memory = torch.xpu.get_device_properties(device.index).total_memory
         # 使用可用内存的一个比例，而不是直接查询可用内存
@@ -121,3 +114,84 @@ class KMeansGPU:
     return normalize(a, dim=-1) @ normalize(b, dim=-1).transpose(-2, -1)
 
   @staticmethod
+  def euc_sim(a, b):
+    """
+      Compute euclidean similarity of 2 sets of vectors
+
+      Parameters:
+      a: torch.Tensor, shape: [m, n_features]
+
+      b: torch.Tensor, shape: [n, n_features]
+    """
+    return 2 * a @ b.transpose(-2, -1) - (a ** 2).sum(dim=-1)[..., :, None] - (b ** 2).sum(dim=-1)[..., None, :]
+
+  def max_sim(self, a, b):
+    """
+      Compute maximum similarity (or minimum distance) of each vector
+      in a with all of the vectors in b
+
+      Parameters:
+      a: torch.Tensor, shape: [m, n_features]
+
+      b: torch.Tensor, shape: [n, n_features]
+    """
+    if self.mode == 'cosine':
+      sim_func = self.cos_sim
+    elif self.mode == 'euclidean':
+      sim_func = self.euc_sim
+    sims = sim_func(a, b)
+    max_sim_v, max_sim_i = sims.max(dim=-1)
+    return max_sim_v, max_sim_i
+
+  def fit_predict(self, X):
+    """
+      Combination of fit() and predict() methods.
+      This is faster than calling fit() and predict() separately.
+
+      Parameters:
+      X: torch.Tensor, shape: [n_samples, n_features]
+
+      Returns:
+      labels: torch.Tensor, shape: [n_samples]
+    """
+    self.fit(X)
+    return self.predict(X)
+
+  def fit(self, X):
+    """
+      Performs kmeans clustering
+
+      Parameters:
+      X: torch.Tensor, shape: [n_samples, n_features]
+    """
+    self.centroids = _kpp(X, self.n_clusters, self.minibatch)
+
+    for i in range(self.max_iter):
+      # finds the nearest centroid for each sample
+      labels = self.predict(X)
+
+      # updates the centroids
+      old_centroids = self.centroids.clone()
+      for j in range(self.n_clusters):
+        mask = labels == j
+        if mask.sum() > 0:
+          self.centroids[j] = X[mask].mean(dim=0)
+      
+      # checks for convergence
+      if torch.norm(self.centroids - old_centroids) < self.tol:
+        break
+
+    return self
+
+  def predict(self, X):
+    """
+      Predicts the labels of the samples in X
+
+      Parameters:
+      X: torch.Tensor, shape: [n_samples, n_features]
+
+      Returns:
+      labels: torch.Tensor, shape: [n_samples]
+    """
+    _, labels = self.max_sim(X, self.centroids)
+    return labels

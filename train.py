@@ -86,13 +86,8 @@ def safe_load_latest_checkpoint(model_dir, model_name_pattern, model, optimizer=
 
 def main():
     """Assume Single Node Multi GPUs Training Only"""
-    # 检测设备类型 - 优先检测CUDA而非XPU，以支持A770
-    if torch.cuda.is_available():
-        n_gpus = torch.cuda.device_count()
-        device_type = 'cuda'
-        print(f"CUDA devices available: {n_gpus}, using CUDA backend")
-    elif torch.xpu.is_available():
-        # 仅当CUDA不可用时才检测XPU
+    # 检测设备类型 - 仅支持XPU设备
+    if torch.xpu.is_available():
         n_gpus = torch.xpu.device_count()
         device_type = 'xpu'
         print(f"XPU devices available: {n_gpus}, using XPU backend")
@@ -101,7 +96,7 @@ def main():
         os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
     else:
         raise RuntimeError(
-            "No CUDA or XPU device available. Training requires a GPU.")
+            "No XPU device available. Training requires an Intel GPU.")
 
     assert n_gpus > 0, f"No GPU devices found. n_gpus: {n_gpus}"
 
@@ -125,12 +120,7 @@ def run(rank, n_gpus, hps, device_type):
 
     # 对于单GPU情况，不需要初始化分布式训练
     if n_gpus > 1:  # 只在多GPU时初始化分布式训练
-        if device_type == 'cuda':
-            backend = 'gloo' if os.name == 'nt' else 'nccl'
-            init_method = 'tcp://127.0.0.1:12355'
-            dist.init_process_group(
-                backend=backend, init_method=init_method, world_size=n_gpus, rank=rank)
-        elif device_type == 'xpu':
+        if device_type == 'xpu':
             backend = 'gloo' if os.name == 'nt' else 'ccl'
             init_method = 'tcp://127.0.0.1:12355'
             dist.init_process_group(
@@ -139,9 +129,7 @@ def run(rank, n_gpus, hps, device_type):
             raise RuntimeError(f"Unsupported device type: {device_type}")
     else:
         # 单GPU模式，设置主设备
-        if device_type == 'cuda':
-            torch.cuda.set_device(rank)
-        elif device_type == 'xpu':
+        if device_type == 'xpu':
             torch.xpu.set_device(rank)
 
     torch.manual_seed(hps.train.seed)
@@ -191,9 +179,7 @@ def run(rank, n_gpus, hps, device_type):
         )
 
     # 根据设备类型将模型移动到对应设备
-    if device_type == 'cuda':
-        device = torch.device(f'cuda:{rank}')
-    elif device_type == 'xpu':
+    if device_type == 'xpu':
         device = torch.device(f'xpu:{rank}')
     else:
         raise RuntimeError(f"Unsupported device type: {device_type}")
@@ -216,11 +202,7 @@ def run(rank, n_gpus, hps, device_type):
 
     # 对于单GPU，不需要使用DDP包装
     if n_gpus > 1:
-        if torch.cuda.is_available():
-            net_g = DDP(net_g, device_ids=[rank], find_unused_parameters=getattr(
-                hps.train, 'find_unused_parameters', False))  # , find_unused_parameters=True)
-            net_d = DDP(net_d, device_ids=[rank])
-        elif torch.xpu.is_available():
+        if torch.xpu.is_available():
             net_g = DDP(net_g, device_ids=[rank])
             net_d = DDP(net_d, device_ids=[rank])
         else:
@@ -267,18 +249,59 @@ def run(rank, n_gpus, hps, device_type):
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
         optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
-    # 针对XPU设备禁用fp16_run功能，因为XPU可能存在混合精度训练的兼容性问题
+    # 针对XPU设备的精度支持检测和处理
     if device_type == 'xpu':
         if hps.train.fp16_run:
-            print("Detected XPU device, disabling fp16_run for compatibility...")
-            hps.train.fp16_run = False
-        # 额外的安全检查
-        if hasattr(hps.train, 'half_type') and hps.train.half_type != 'fp32':
-            print("Setting half_type to fp32 for XPU compatibility...")
-            hps.train.half_type = 'fp32'
+            # 检测XPU设备的精度支持情况
+            try:
+                # 测试基本精度支持
+                device = torch.device('xpu:0')
+                
+                # 测试FP32（应该总是支持）
+                fp32_test = torch.randn(10, 10, dtype=torch.float32, device=device)
+                
+                # 测试FP16支持
+                fp16_supported = False
+                try:
+                    fp16_test = torch.randn(10, 10, dtype=torch.float16, device=device)
+                    fp16_result = fp16_test + fp16_test
+                    fp16_supported = True
+                    print("XPU device supports FP16 operations")
+                except Exception:
+                    print("XPU device has limited FP16 support")
+                
+                # 测试BF16支持
+                bf16_supported = False
+                try:
+                    bf16_test = torch.randn(10, 10, dtype=torch.bfloat16, device=device)
+                    bf16_result = bf16_test + bf16_test
+                    bf16_supported = True
+                    print("XPU device supports BF16 operations")
+                except Exception:
+                    print("XPU device has limited BF16 support")
+                
+                # 根据支持情况给出建议
+                if fp16_supported or bf16_supported:
+                    print("XPU device supports mixed precision, keeping fp16_run enabled...")
+                    if bf16_supported and hasattr(hps.train, 'half_type'):
+                        if hps.train.half_type == 'fp16' and bf16_supported:
+                            print("Note: For Intel XPU, BF16 often provides better stability than FP16")
+                        elif hps.train.half_type == 'bf16':
+                            print("Using recommended BF16 precision for Intel XPU")
+                    elif not bf16_supported and hasattr(hps.train, 'half_type') and hps.train.half_type == 'bf16':
+                        print("Warning: BF16 not fully supported, consider using FP16 or FP32")
+                else:
+                    print("Warning: Limited mixed precision support detected")
+                    print("Consider using FP32 for maximum stability")
+                    
+            except Exception as e:
+                print(f"Precision detection error: {str(e)}")
+                print("Proceeding with configured precision settings...")
+        else:
+            print("fp16_run is disabled in config for XPU device")
 
     # 根据设备类型创建GradScaler
-    if device_type in ['cuda', 'xpu']:
+    if device_type == 'xpu':
         scaler = GradScaler(device_type, enabled=hps.train.fp16_run)
     else:
         # CPU模式下不使用GradScaler
@@ -345,9 +368,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             hps.data.mel_fmax)
 
         # 根据设备类型将数据移动到对应设备
-        if device_type == 'cuda':
-            device = torch.device(f'cuda:{rank}')
-        elif device_type == 'xpu':
+        if device_type == 'xpu':
             device = torch.device(f'xpu:{rank}')
         else:
             raise RuntimeError(f"Unsupported device type: {device_type}")
@@ -587,9 +608,7 @@ def evaluate(hps, generator, eval_loader, writer_eval, device_type):
             c, f0, spec, y, spk, _, uv, volume = items
 
             # 根据设备类型将数据移动到对应设备
-            if device_type == 'cuda':
-                device = torch.device('cuda:0')
-            elif device_type == 'xpu':
+            if device_type == 'xpu':
                 device = torch.device('xpu:0')
             else:
                 raise RuntimeError(f"Unsupported device type: {device_type}")

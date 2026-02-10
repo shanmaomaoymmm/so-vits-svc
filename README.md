@@ -1,23 +1,23 @@
 <!-- 中文 -->
 
-# SoftVC VITS Singing Voice Conversion For Intel
+# SoftVC VITS Singing Voice Conversion For Intel XPU
 
 ![wmm](./doc/img/1701608234384.png)
 
-📻 基于So-VITS-SVC模型的训练推理框架，适配Intel显卡支持。
+📻 基于So-VITS-SVC模型的训练推理框架，专为Intel显卡优化设计。
 
-## ⚠️ 注意事项
+## ⚠️ 重要声明
 
-1. 此项目**仅支持Intel独显/核显**，其余显卡请参照原项目：[So-VITS-SVC](https://github.com/svc-develop-team/so-vits-svc)；
+1. 此项目**仅支持Intel独显/核显(XPU)**，已完全移除CUDA支持，请勿在NVIDIA等其他平台使用；
 2. 本项目为开源、离线的项目，**不能收集任何用户信息或获取用户输入数据**，不负责任何用户输入。本项目**不向任何组织、个人提供任何形式的支持**，故一切基于本项目训练的 AI 模型和合成的音频都**与本项目贡献者无关**。一切由此造成的问题**由使用者自行承担**；
 3. 本项目只是一个框架项目，没有任何模型，任何二次分发的项目都与这个项目的贡献者无关；
 4. 请自行解决数据集授权问题，**禁止使用非授权数据集进行训练**。任何由于使用非授权数据集进行训练造成的问题，需**自行承担全部责任和后果**。
 
 ## 📗 项目简介
 
-本项目是基于[So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc)项目，原项目版本为`4.1-Stable`，使用PyTorch+XPU，适配Intel显卡。用于声音音色转换、AI翻唱等功能。通过SoftVC内容编码器提取源音频语音特征。
+本项目是基于[So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc)项目，原项目版本为`4.1-Stable`，使用PyTorch+XPU，专为Intel显卡优化。用于声音音色转换、AI翻唱等功能。通过SoftVC内容编码器提取源音频语音特征。
 
-## 🚗 已测试GPU硬件
+## 🚗 支持的Intel GPU硬件
 
 + Intel Iris Xe Graphics eligible
 + 英特尔锐炫 A380 显卡
@@ -458,6 +458,75 @@ python compress_model.py -c="configs/config.json" -i="logs/44k/G_<模型名称>.
 python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 ```
 
+## ⚙️ XPU设备训练建议
+
+对于Intel XPU设备，建议使用以下配置以获得最佳性能和稳定性：
+
+1. **混合精度支持**: 现代Intel XPU设备通常支持完整的FP16/BF16混合精度训练
+   - **FP32**: 完全支持，最稳定的选项
+   - **FP16**: 基本支持，性能提升显著
+   - **BF16**: 推荐选项，Intel XPU上的最佳选择，提供良好的性能和稳定性
+
+2. **精度支持检测**:
+   运行以下脚本快速检测您的XPU设备精度支持情况：
+   ```bash
+   python check_xpu_precision.py
+   ```
+
+3. **推荐配置参数**:
+   
+   **推荐配置（BF16）**:
+   ```json
+   {
+     "train": {
+       "batch_size": 6,
+       "fp16_run": true,
+       "half_type": "bf16",
+       "grad_accumulation_steps": 2,
+       "all_in_mem": false
+     }
+   }
+   ```
+   
+   **备选配置（FP16）**:
+   ```json
+   {
+     "train": {
+       "batch_size": 6,
+       "fp16_run": true,
+       "half_type": "fp16",
+       "grad_accumulation_steps": 2,
+       "all_in_mem": false
+     }
+   }
+   ```
+   
+   **稳定配置（FP32）**:
+   ```json
+   {
+     "train": {
+       "batch_size": 4,
+       "fp16_run": false,
+       "half_type": "fp32",
+       "grad_accumulation_steps": 4,
+       "all_in_mem": false
+     }
+   }
+   ```
+
+4. **性能优化建议**:
+   - **BF16优先**: 对于Intel XPU，BF16通常是最佳选择
+   - **合理batch_size**: 根据显存调整，通常4-8之间
+   - **梯度累积**: 使用grad_accumulation_steps模拟更大batch_size
+   - **内存管理**: 禁用all_in_mem避免内存溢出
+   - **定期清理**: 训练中定期调用torch.xpu.empty_cache()
+
+5. **故障排除**:
+   - 如果遇到训练不稳定，逐步降低精度（BF16 → FP16 → FP32）
+   - 监控显存使用，适当调整batch_size和grad_accumulation_steps
+   - 确保驱动程序和PyTorch XPU版本为最新
+   - 查看训练日志中的精度检测信息
+
 ## 🛑 已知问题
 
 1. 在Ubuntu等Linux系统下，模型训练会出现显存溢出的情况，致使模型无法正常训练。相较于在Windows下进行训练，在Linux下训练时请将batch_size调小。
@@ -476,7 +545,7 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 ---
 <!-- English -->
 
-# SoftVC VITS Singing Voice Conversion For Intel
+# SoftVC VITS Singing Voice Conversion For Intel XPU
 
 ![wmm](./doc/img/1701608234384.png)
 
@@ -484,7 +553,7 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 
 ## ⚠️ Notes
 
-1. This project **only supports Intel discrete/Integrated Graphics**, for other graphics cards please refer to the original project: [So-VITS-SVC](https://github.com/svc-develop-team/so-vits-svc);
+1. This project **only supports Intel discrete/Integrated Graphics(XPU)**, CUDA support has been completely removed, do not use on NVIDIA or other platforms;
 2. This project is an open-source, offline project that **cannot collect any user information or acquire user input data** and assumes no responsibility for any user input. This project **does not provide any form of support to any organization or individual**, so all AI models based on this project and synthesized audio **are unrelated to the contributors of this project**. All problems caused by this shall be **borne by the user**;
 3. This project is only a framework project with no models, and any redistributions of the project are unrelated to the contributors of this project;
 4. Please resolve dataset licensing issues on your own, **prohibited from using unlicensed datasets for training**. Any problems caused by using unlicensed datasets for training, the **full responsibility and consequences must be borne by the user**.
@@ -493,7 +562,7 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 
 This project is based on the [So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc) project, the original project version is `4.1-Stable`, using PyTorch+XPU, adapted for Intel graphics cards. Used for voice tone conversion, AI covers, and other functions. Extracts source audio speech features through the SoftVC content encoder.
 
-## 🚗 Tested GPU Hardware
+## 🚗 Supported Intel GPU Hardware
 
 + Intel Iris Xe Graphics eligible
 + Intel Arc A380 Graphics Card
@@ -926,6 +995,75 @@ Export the model to ONNX format for deployment:
 ```
 python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 ```
+
+## ⚙️ XPU设备训练建议
+
+对于Intel XPU设备，建议使用以下配置以获得最佳性能和稳定性：
+
+1. **混合精度支持**: 现代Intel XPU设备通常支持完整的FP16/BF16混合精度训练
+   - **FP32**: 完全支持，最稳定的选项
+   - **FP16**: 基本支持，性能提升显著
+   - **BF16**: 推荐选项，Intel XPU上的最佳选择，提供良好的性能和稳定性
+
+2. **精度支持检测**:
+   运行以下脚本快速检测您的XPU设备精度支持情况：
+   ```bash
+   python check_xpu_precision.py
+   ```
+
+3. **推荐配置参数**:
+   
+   **推荐配置（BF16）**:
+   ```json
+   {
+     "train": {
+       "batch_size": 6,
+       "fp16_run": true,
+       "half_type": "bf16",
+       "grad_accumulation_steps": 2,
+       "all_in_mem": false
+     }
+   }
+   ```
+   
+   **备选配置（FP16）**:
+   ```json
+   {
+     "train": {
+       "batch_size": 6,
+       "fp16_run": true,
+       "half_type": "fp16",
+       "grad_accumulation_steps": 2,
+       "all_in_mem": false
+     }
+   }
+   ```
+   
+   **稳定配置（FP32）**:
+   ```json
+   {
+     "train": {
+       "batch_size": 4,
+       "fp16_run": false,
+       "half_type": "fp32",
+       "grad_accumulation_steps": 4,
+       "all_in_mem": false
+     }
+   }
+   ```
+
+4. **性能优化建议**:
+   - **BF16优先**: 对于Intel XPU，BF16通常是最佳选择
+   - **合理batch_size**: 根据显存调整，通常4-8之间
+   - **梯度累积**: 使用grad_accumulation_steps模拟更大batch_size
+   - **内存管理**: 禁用all_in_mem避免内存溢出
+   - **定期清理**: 训练中定期调用torch.xpu.empty_cache()
+
+5. **故障排除**:
+   - 如果遇到训练不稳定，逐步降低精度（BF16 → FP16 → FP32）
+   - 监控显存使用，适当调整batch_size和grad_accumulation_steps
+   - 确保驱动程序和PyTorch XPU版本为最新
+   - 查看训练日志中的精度检测信息
 
 ## 🛑 Known Issues
 

@@ -103,7 +103,7 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
     model.train()
     saver.log_info('======= start training =======')
     # 根据设备类型初始化GradScaler
-    if args.device == 'cuda' or args.device == 'xpu':
+    if args.device == 'xpu':
         scaler = GradScaler(args.device, enabled=getattr(args.train, 'amp_enabled', True))
     else:
         # CPU或其他设备不使用GradScaler
