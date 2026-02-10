@@ -25,7 +25,8 @@
     "port": "8001",
     "keep_ckpts": 24,
     "all_in_mem": true,
-    "vol_aug": true
+    "vol_aug": true,
+    "grad_accumulation_steps": 1
   },
   "data": {
     "training_files": "filelists/train.txt",
