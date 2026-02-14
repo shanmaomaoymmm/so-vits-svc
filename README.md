@@ -606,8 +606,8 @@ This project is based on the [So-Vits-SVC](https://github.com/svc-develop-team/s
 ## 🚗 Supported Intel GPU Hardware
 
 + Intel Iris Xe Graphics eligible
-+ Intel Arc A380 Graphics Card
-+ Intel Arc A770 Graphics Card
++ Intel Arc A380 Graphics
++ Intel Arc A770 Graphics
 
 ## 🧪 Environment Configuration
 

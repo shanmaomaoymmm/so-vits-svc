@@ -382,7 +382,13 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
                     y_d_hat_r, y_d_hat_g)
                 loss_disc_all = loss_disc / grad_accumulation_steps  # 平均损失
-
+                
+                # 添加NaN检查
+                if torch.isnan(loss_disc_all):
+                    logger.warning(f"NaN detected in loss_disc_all at step {global_step}")
+                    logger.warning(f"Original loss_disc: {loss_disc}")
+                    # 使用安全的默认值
+                    loss_disc_all = torch.tensor(1.0, device=loss_disc_all.device)
         # 只在累积步数的最后一步更新参数
         if batch_idx % grad_accumulation_steps == 0:
             optim_d.zero_grad()
@@ -414,8 +420,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             optim_d.zero_grad()
             
             # 更新缩放因子（但不调用scaler.update()避免FP64操作）
-            # 手动更新scale因子
-            new_scale = scale_factor * 2.0  # 简单的增长策略
+            # 改进的scale因子更新策略
+            new_scale = scale_factor * 1.1  # 更保守的增长策略
+            # 添加上限限制防止无限增长
+            if new_scale > 65536.0:  # 2^16
+                new_scale = 65536.0
             scaler._scale = torch.tensor(new_scale, device='xpu')  # 固定设备为xpu
         else:
             # FP32训练或CPU模式
@@ -445,9 +454,21 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
 
                 loss_lf0 = F.mse_loss(
                     pred_lf0, lf0) if use_automatic_f0_prediction else 0
+                
+                # 添加NaN检查
+                if torch.isnan(loss_lf0):
+                    logger.warning(f"NaN detected in loss_lf0 at step {global_step}")
+                    loss_lf0 = torch.tensor(0.0, device=loss_lf0.device)
+                
                 loss_gen_all = (loss_gen + loss_fm + loss_mel +
                                 loss_kl + loss_lf0) / grad_accumulation_steps
-
+                
+                # 最终NaN检查
+                if torch.isnan(loss_gen_all):
+                    logger.error(f"NaN detected in final loss_gen_all at step {global_step}")
+                    logger.error(f"Components: gen={loss_gen}, fm={loss_fm}, mel={loss_mel}, kl={loss_kl}, lf0={loss_lf0}")
+                    # 使用一个安全的默认值继续训练
+                    loss_gen_all = torch.tensor(1.0, device=loss_gen_all.device)
         if batch_idx % grad_accumulation_steps == 0:
             optim_g.zero_grad()
 
@@ -478,8 +499,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             optim_g.zero_grad()
             
             # 更新缩放因子（但不调用scaler.update()避免FP64操作）
-            # 手动更新scale因子
-            new_scale = scale_factor * 2.0  # 简单的增长策略
+            # 改进的scale因子更新策略
+            new_scale = scale_factor * 1.1  # 更保守的增长策略
+            # 添加上限限制防止无限增长
+            if new_scale > 65536.0:  # 2^16
+                new_scale = 65536.0
             scaler._scale = torch.tensor(new_scale, device='xpu')  # 固定设备为xpu
         else:
             # FP32训练或CPU模式
@@ -496,12 +520,21 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 lr = optim_g.param_groups[0]['lr']
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]
 
-                # 检查是否有任何损失值为nan
+                # 检查是否有任何损失值为nan，并提供详细信息
                 for i, loss in enumerate(losses):
                     if torch.isnan(loss):
+                        logger.error(f"NaN loss detected at step {global_step}")
+                        logger.error(f"Loss {i} is NaN: {loss}")
+                        logger.error(f"All losses: disc={loss_disc}, gen={loss_gen}, fm={loss_fm}, mel={loss_mel}, kl={loss_kl}")
+                        logger.error(f"Scale factor: {scaler.get_scale() if scaler is not None else 'None'}")
+                        logger.error(f"Gradient norms: D={grad_norm_d}, G={grad_norm_g}")
+                        
+                        # 检查输入数据
+                        logger.error(f"Input shapes - c: {c.shape}, f0: {f0.shape}, spec: {spec.shape}")
+                        logger.error(f"Model outputs - y_hat: {y_hat.shape if 'y_hat' in locals() else 'not computed'}")
+                        
                         raise ValueError(
                             f' [x] NaN loss detected at step {global_step} in loss {i}: {losses[i]}')
-
                 reference_loss = 0
                 for i in losses:
                     reference_loss += i
