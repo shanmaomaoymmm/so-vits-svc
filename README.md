@@ -527,7 +527,7 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
    - 确保驱动程序和PyTorch XPU版本为最新
    - 查看训练日志中的精度检测信息
 
-#### 3.2.2 训练参数详解
+#### 训练参数详解
 
 | 参数名 | 类型 | 默认值 | 说明 |
 |-------|------|--------|------|
@@ -1112,7 +1112,7 @@ For Intel XPU devices, it is recommended to use the following configuration to a
    - Ensure drivers and PyTorch XPU versions are up to date
    - Check precision detection information in training logs
 
-#### 3.2.2 Training Parameters Detailed Explanation
+#### Training Parameters Detailed Explanation
 
 | Parameter Name | Type | Default | Description |
 |---------------|------|---------|-------------|

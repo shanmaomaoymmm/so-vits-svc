@@ -347,6 +347,10 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
     # 获取梯度累积步数，以模拟更大的批次大小
     grad_accumulation_steps = getattr(hps.train, 'grad_accumulation_steps', 1)
 
+    # 初始化梯度范数变量（防止UnboundLocalError）
+    grad_norm_d = 0.0
+    grad_norm_g = 0.0
+
     for batch_idx, items in enumerate(train_loader):
         c, f0, spec, y, spk, lengths, uv, volume = items
         g = spk.to(rank, non_blocking=True)
@@ -391,7 +395,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             hps.data.mel_fmin,
             hps.data.mel_fmax)
 
-        # Discriminator training
+        # Discriminator
         y_hat, ids_slice, z_mask, \
             (z, z_p, m_p, logs_p, m_q, logs_q), pred_lf0, norm_lf0, lf0 = net_g(c, f0, uv, spec, g=g, c_lengths=lengths,
                                                                                 spec_lengths=lengths, vol=volume)
@@ -440,13 +444,15 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                     else:
                         raise e
 
-            grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
+            # 修改：使用正确的梯度范数裁剪（原为clip_grad_value_）
+            grad_norm_d = torch.nn.utils.clip_grad_norm_(net_d.parameters(), max_norm=1.0)
             scaler.step(optim_d)
             scaler.update()
         else:
             # XPU设备或未启用fp16时，直接进行反向传播
             loss_disc_all.backward()
-            grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
+            # 修改：使用正确的梯度范数裁剪（原为clip_grad_value_）
+            grad_norm_d = torch.nn.utils.clip_grad_norm_(net_d.parameters(), max_norm=1.0)
             optim_d.step()
 
         # Generator
@@ -455,7 +461,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             with autocast(device_type=device_type, enabled=False, dtype=half_type):
                 loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
                 loss_kl = kl_loss(z_p, logs_q, m_p, logs_p,
-                                      z_mask) * hps.train.c_kl
+                                  z_mask) * hps.train.c_kl
                 # 添加c_fm权重控制
                 c_fm = getattr(hps.train, 'c_fm', 1.0)
                 loss_fm = feature_loss(fmap_r, fmap_g) * c_fm
@@ -488,18 +494,19 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                     scaler.unscale_(optim_g)
                 except RuntimeError as e:
                     if "fp64" in str(e) or "aspect" in str(e):
-                        # 如果遇到fp64错误，跳过unscale步骤
+                        # 如果遇到fp64错误
                         pass
                     else:
                         raise e
 
-            grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
+            # 修改：使用正确的梯度范数裁剪（原为clip_grad_value_）
+            grad_norm_g = torch.nn.utils.clip_grad_norm_(net_g.parameters(), max_norm=1.0)
             scaler.step(optim_g)
             scaler.update()
         else:
-            # XPU设备或未启用fp16时，直接进行反向传播
+            # XPU设备或未启用fp16时
             loss_gen_all.backward()
-            # 添加梯度裁剪以提高稳定性
+            # 修改：使用正确的梯度范数裁剪
             grad_norm_g = torch.nn.utils.clip_grad_norm_(net_g.parameters(), max_norm=1.0)
             optim_g.step()
         # 梯度累积：只有在累积步数的最后一步才增加global_step和进行日志记录

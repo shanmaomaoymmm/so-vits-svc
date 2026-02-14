@@ -47,3 +47,9 @@ langdetect
 
 # System utilities
 psutil
+
+# oneapi
+openvino==2025.4.1
+intel-openmp
+mkl
+mkl-devel
