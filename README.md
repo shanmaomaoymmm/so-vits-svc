@@ -294,7 +294,7 @@ python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 
 执行完以上步骤后，`dataset`目录便是预处理完成的数据，此时`dataset_raw`文件夹可以删除。
 
-### 5. 开始训练
+## 🚴 开始训练
 
 ```
 python train.py -c configs/config.json -m 44k
@@ -880,7 +880,7 @@ python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 
 After completing the above steps, the `dataset` directory will contain the preprocessed data, and the `dataset_raw` folder can be deleted at this time.
 
-### 5. Start Training
+## 🚴 Start Training
 
 ```
 python train.py -c configs/config.json -m 44k
