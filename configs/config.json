@@ -1,7 +1,7 @@
 {
   "train": {
     "log_interval": 200,
-    "eval_interval": 400,
+    "eval_interval": 1000,
     "seed": 1234,
     "epochs": 10000,
     "learning_rate": 0.0001,
@@ -10,7 +10,7 @@
       0.99
     ],
     "eps": 1e-09,
-    "batch_size": 8,
+    "batch_size": 16,
     "fp16_run": true,
     "half_type": "bf16",
     "lr_decay": 0.999875,
@@ -23,10 +23,9 @@
     "use_sr": true,
     "max_speclen": 512,
     "port": "8001",
-    "keep_ckpts": 32,
+    "keep_ckpts": 24,
     "all_in_mem": true,
-    "vol_aug": true,
-    "grad_accumulation_steps": 2
+    "vol_aug": true
   },
   "data": {
     "training_files": "filelists/train.txt",

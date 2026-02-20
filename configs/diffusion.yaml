@@ -46,7 +46,6 @@ train:
   num_workers: 4
   save_opt: false
   weight_decay: 0
-  grad_accumulation_steps: 1
 vocoder:
   ckpt: pretrain/nsf_hifigan/model
   type: nsf-hifigan

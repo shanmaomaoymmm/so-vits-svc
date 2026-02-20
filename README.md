@@ -8,7 +8,7 @@
 
 ## ⚠️ 重要声明
 
-1. 此项目**仅支持Intel独显/核显(XPU)**，请勿在NVIDIA等其他平台使用；
+1. 此项目**仅支持Intel独显/核显(XPU)**，已完全移除CUDA支持，请勿在NVIDIA等其他平台使用；
 2. 本项目为开源、离线的项目，**不能收集任何用户信息或获取用户输入数据**，不负责任何用户输入。本项目**不向任何组织、个人提供任何形式的支持**，故一切基于本项目训练的 AI 模型和合成的音频都**与本项目贡献者无关**。一切由此造成的问题**由使用者自行承担**；
 3. 本项目只是一个框架项目，没有任何模型，任何二次分发的项目都与这个项目的贡献者无关；
 4. 请自行解决数据集授权问题，**禁止使用非授权数据集进行训练**。任何由于使用非授权数据集进行训练造成的问题，需**自行承担全部责任和后果**。
@@ -17,7 +17,7 @@
 
 本项目是基于[So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc)项目，原项目版本为`4.1-Stable`，使用PyTorch+XPU，专为Intel显卡优化。用于声音音色转换、AI翻唱等功能。通过SoftVC内容编码器提取源音频语音特征。
 
-## 🚗 已测试的Intel GPU硬件
+## 🚗 支持的Intel GPU硬件
 
 + Intel Iris Xe Graphics eligible
 + 英特尔锐炫 A380 显卡
@@ -78,7 +78,7 @@ pip install torch torchvision torchaudio --index-url https://mirror.sjtu.edu.cn/
 
 **安装其余依赖**
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
@@ -294,7 +294,7 @@ python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 
 执行完以上步骤后，`dataset`目录便是预处理完成的数据，此时`dataset_raw`文件夹可以删除。
 
-## 🚴 开始训练
+### 5. 开始训练
 
 ```
 python train.py -c configs/config.json -m 44k
@@ -527,47 +527,6 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
    - 确保驱动程序和PyTorch XPU版本为最新
    - 查看训练日志中的精度检测信息
 
-#### 训练参数详解
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|-------|------|--------|------|
-| `batch_size` | int | 6 | 每批训练样本数量 |
-| `grad_accumulation_steps` | int | 1 | 梯度累积步数，用于模拟更大batch_size |
-| `fp16_run` | bool | false | 是否启用混合精度训练 |
-| `half_type` | string | "fp16" | 混合精度类型："fp16"或"bf16" |
-| `learning_rate` | float | 0.0001 | 学习率 |
-| `c_mel` | float | 45 | Mel谱损失权重 |
-| `c_kl` | float | 1.0 | KL散度损失权重 |
-| `c_fm` | float | 0.5 | 特征匹配损失权重 |
-
-##### 梯度累积参数 (`grad_accumulation_steps`)
-
-**功能说明**：
-梯度累积是一种显存优化技术，允许在显存有限的情况下模拟更大的batch_size效果。
-
-**使用场景**：
-- 显存不足无法使用较大的batch_size
-- 需要更大的有效batch_size来提高训练稳定性
-- Intel XPU显存受限时的优化手段
-
-**配置建议**：
-```
-{
-  "train": {
-    "batch_size": 4,              // 实际批次大小
-    "grad_accumulation_steps": 2, // 梯度累积步数
-    // 最终效果相当于 batch_size=8
-    "fp16_run": false,
-    "half_type": "fp32"
-  }
-}
-```
-
-**注意事项**：
-- 增加`grad_accumulation_steps`会延长每个epoch的训练时间
-- 建议值通常为1-4，根据显存情况调整
-- 需要相应调整学习率调度器的步数计算
-
 ## 🛑 已知问题
 
 1. 在Ubuntu等Linux系统下，模型训练会出现显存溢出的情况，致使模型无法正常训练。相较于在Windows下进行训练，在Linux下训练时请将batch_size调小。
@@ -590,37 +549,38 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 
 ![wmm](./doc/img/1701608234384.png)
 
-📻 A training and inference framework based on the So-VITS-SVC model, specifically optimized for Intel GPUs.
+📻 A training and inference framework based on the So-VITS-SVC model, adapted to support Intel GPUs.
 
 ## ⚠️ Notes
 
-1. This project **only supports Intel discrete/integrated graphics (XPU)**, do not use on NVIDIA or other platforms;
+1. This project **only supports Intel discrete/Integrated Graphics(XPU)**, CUDA support has been completely removed, do not use on NVIDIA or other platforms;
 2. This project is an open-source, offline project that **cannot collect any user information or acquire user input data** and assumes no responsibility for any user input. This project **does not provide any form of support to any organization or individual**, so all AI models based on this project and synthesized audio **are unrelated to the contributors of this project**. All problems caused by this shall be **borne by the user**;
 3. This project is only a framework project with no models, and any redistributions of the project are unrelated to the contributors of this project;
 4. Please resolve dataset licensing issues on your own, **prohibited from using unlicensed datasets for training**. Any problems caused by using unlicensed datasets for training, the **full responsibility and consequences must be borne by the user**.
 
 ## 📗 Project Introduction
 
-This project is based on the [So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc) project, the original project version is `4.1-Stable`, using PyTorch+XPU, specifically optimized for Intel graphics cards. Used for voice tone conversion, AI covers, and other functions. Extracts source audio speech features through the SoftVC content encoder.
+This project is based on the [So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc) project, the original project version is `4.1-Stable`, using PyTorch+XPU, adapted for Intel graphics cards. Used for voice tone conversion, AI covers, and other functions. Extracts source audio speech features through the SoftVC content encoder.
 
 ## 🚗 Supported Intel GPU Hardware
 
 + Intel Iris Xe Graphics eligible
-+ Intel Arc A380 Graphics
-+ Intel Arc A770 Graphics
++ Intel Arc A380 Graphics Card
++ Intel Arc A770 Graphics Card
 
 ## 🧪 Environment Configuration
 
 ### 1. Install Python Environment
 
-This project uses Python 3.11, theoretically supports higher Python versions, but has not been fully tested yet.  
+This project uses Python 3.11, theoretically supports higher Python versions, but has not been tested yet.  
 Since PyTorch+XPU requires a minimum of Python 3.10, you need to install Python 3.10 or above.
+Windows
 ```bash
 # Windows
 winget install --id Python.Python.3.11
 
 # Ubuntu
-sudo apt install python3.11 python3.11-dev python3.11-venv
+sudo apt install python3.11 python3.11-venv
 
 # Fedora
 sudo dnf install python3.11 python3.11-devel python3.11-pip
@@ -630,11 +590,7 @@ sudo dnf install python3.11 python3.11-devel python3.11-pip
 
 Execute terminal commands in the project root directory to create a virtual environment
 ```bash
-# Windows
 py -3.11 -m venv venv
-
-# Linux
-python3.11 -m venv venv
 ```
 
 Activate the virtual environment
@@ -654,11 +610,8 @@ Current PyTorch officially supports Intel graphics cards, so just install PyTorc
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
 
-# Slow download or frequent termination can use mirror sources
-# Nanjing University
-pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu
-# Shanghai Jiao Tong University
-pip install torch torchvision torchaudio --index-url https://mirror.sjtu.edu.cn/pytorch-wheels/xpu
+# Download slowly or frequently terminated, you can use Nanjing University mirror source
+pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu/
 ```
 
 **Install Other Dependencies**
@@ -671,7 +624,7 @@ pip install -r requirements.txt
 
 ### Encoder
 
-The following encoders need to select one to use:
+Select one of the following encoders to use
 - "vec768l12"
 - "vec256l9"
 - "vec256l9-onnx"
@@ -816,7 +769,7 @@ speech_encoder parameter options:
 + wavlmbase+
 
 If using loudness embedding, add the --vol_aug parameter.
-```bash
+```
 python preprocess_flist_config.py --speech_encoder vec768l12 --vol_aug
 ```
 
@@ -880,7 +833,7 @@ python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 
 After completing the above steps, the `dataset` directory will contain the preprocessed data, and the `dataset_raw` folder can be deleted at this time.
 
-## 🚴 Start Training
+### 5. Start Training
 
 ```
 python train.py -c configs/config.json -m 44k
@@ -917,7 +870,7 @@ pip install supervisor-win
 ```
 
 Model training
-```bash
+```
 # Main model training
 supervisord -n -c train_supervisord.conf
 
@@ -1043,24 +996,24 @@ Export the model to ONNX format for deployment:
 python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 ```
 
-## ⚙️ XPU Device Training Recommendations
+## ⚙️ XPU设备训练建议
 
-For Intel XPU devices, it is recommended to use the following configuration to achieve optimal performance and stability:
+对于Intel XPU设备，建议使用以下配置以获得最佳性能和稳定性：
 
-1. **Mixed Precision Support**: Modern Intel XPU devices typically support full FP16/BF16 mixed precision training
-   - **FP32**: Fully supported, most stable option
-   - **FP16**: Basic support, significant performance improvement
-   - **BF16**: Recommended option, best choice on Intel XPU, provides good performance and stability
+1. **混合精度支持**: 现代Intel XPU设备通常支持完整的FP16/BF16混合精度训练
+   - **FP32**: 完全支持，最稳定的选项
+   - **FP16**: 基本支持，性能提升显著
+   - **BF16**: 推荐选项，Intel XPU上的最佳选择，提供良好的性能和稳定性
 
-2. **Precision Support Detection**:
-   Run the following script to quickly detect your XPU device's precision support:
+2. **精度支持检测**:
+   运行以下脚本快速检测您的XPU设备精度支持情况：
    ```bash
    python check_xpu_precision.py
    ```
 
-3. **Recommended Configuration Parameters**:
+3. **推荐配置参数**:
    
-   **Recommended Configuration (BF16)**:
+   **推荐配置（BF16）**:
    ```json
    {
      "train": {
@@ -1073,7 +1026,7 @@ For Intel XPU devices, it is recommended to use the following configuration to a
    }
    ```
    
-   **Alternative Configuration (FP16)**:
+   **备选配置（FP16）**:
    ```json
    {
      "train": {
@@ -1086,7 +1039,7 @@ For Intel XPU devices, it is recommended to use the following configuration to a
    }
    ```
    
-   **Stable Configuration (FP32)**:
+   **稳定配置（FP32）**:
    ```json
    {
      "train": {
@@ -1099,59 +1052,18 @@ For Intel XPU devices, it is recommended to use the following configuration to a
    }
    ```
 
-4. **Performance Optimization Recommendations**:
-   - **BF16 Priority**: For Intel XPU, BF16 is usually the best choice
-   - **Reasonable batch_size**: Adjust according to VRAM, typically between 4-8
-   - **Gradient Accumulation**: Use grad_accumulation_steps to simulate larger batch_size
-   - **Memory Management**: Disable all_in_mem to avoid memory overflow
-   - **Regular Cleanup**: Regularly call torch.xpu.empty_cache() during training
+4. **性能优化建议**:
+   - **BF16优先**: 对于Intel XPU，BF16通常是最佳选择
+   - **合理batch_size**: 根据显存调整，通常4-8之间
+   - **梯度累积**: 使用grad_accumulation_steps模拟更大batch_size
+   - **内存管理**: 禁用all_in_mem避免内存溢出
+   - **定期清理**: 训练中定期调用torch.xpu.empty_cache()
 
-5. **Troubleshooting**:
-   - If encountering training instability, gradually reduce precision (BF16 → FP16 → FP32)
-   - Monitor VRAM usage, appropriately adjust batch_size and grad_accumulation_steps
-   - Ensure drivers and PyTorch XPU versions are up to date
-   - Check precision detection information in training logs
-
-#### Training Parameters Detailed Explanation
-
-| Parameter Name | Type | Default | Description |
-|---------------|------|---------|-------------|
-| `batch_size` | int | 6 | Number of samples per training batch |
-| `grad_accumulation_steps` | int | 1 | Gradient accumulation steps to simulate larger batch_size |
-| `fp16_run` | bool | false | Whether to enable mixed precision training |
-| `half_type` | string | "fp16" | Mixed precision type: "fp16" or "bf16" |
-| `learning_rate` | float | 0.0001 | Learning rate |
-| `c_mel` | float | 45 | Mel spectrogram loss weight |
-| `c_kl` | float | 1.0 | KL divergence loss weight |
-| `c_fm` | float | 0.5 | Feature matching loss weight |
-
-##### Gradient Accumulation Parameter (`grad_accumulation_steps`)
-
-**Function Description**:
-Gradient accumulation is a memory optimization technique that allows simulating larger batch_size effects when memory is limited.
-
-**Usage Scenarios**:
-- Insufficient VRAM to use larger batch_size
-- Need larger effective batch_size to improve training stability
-- Optimization method for Intel XPU memory constraints
-
-**Configuration Recommendations**:
-```json
-{
-  "train": {
-    "batch_size": 4,              // Actual batch size
-    "grad_accumulation_steps": 2, // Gradient accumulation steps
-    // Final effect equivalent to batch_size=8
-    "fp16_run": false,
-    "half_type": "fp32"
-  }
-}
-```
-
-**Notes**:
-- Increasing `grad_accumulation_steps` will extend training time per epoch
-- Recommended values are typically 1-4, adjusted according to memory situation
-- Learning rate scheduler step calculation needs corresponding adjustment
+5. **故障排除**:
+   - 如果遇到训练不稳定，逐步降低精度（BF16 → FP16 → FP32）
+   - 监控显存使用，适当调整batch_size和grad_accumulation_steps
+   - 确保驱动程序和PyTorch XPU版本为最新
+   - 查看训练日志中的精度检测信息
 
 ## 🛑 Known Issues
 

@@ -98,10 +98,6 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
     saver.log_info('--- model size ---')
     saver.log_info(params_count)
     
-    # 获取梯度累积步数
-    grad_accumulation_steps = getattr(args.train, 'grad_accumulation_steps', 1)
-    saver.log_info(f'Using gradient accumulation steps: {grad_accumulation_steps}')
-    
     # run
     num_batches = len(loader_train)
     model.train()
@@ -125,10 +121,7 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
     for epoch in range(args.train.epochs):
         for batch_idx, data in enumerate(loader_train):
             saver.global_step_increment()
-            
-            # 只在累积步数的最后一步清零梯度
-            if batch_idx % grad_accumulation_steps == 0:
-                optimizer.zero_grad()
+            optimizer.zero_grad()
 
             # unpack data
             for k in data.keys():
@@ -139,14 +132,10 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
             if dtype == torch.float32:
                 loss = model(data['units'].float(), data['f0'], data['volume'], data['spk_id'], 
                                 aug_shift = data['aug_shift'], gt_spec=data['mel'].float(), infer=False, k_step=model.k_step_max)
-                # 平均损失
-                loss = loss / grad_accumulation_steps
             else:
                 with autocast(device_type=args.device, dtype=dtype):
                     loss = model(data['units'], data['f0'], data['volume'], data['spk_id'], 
                                     aug_shift = data['aug_shift'], gt_spec=data['mel'], infer=False, k_step=model.k_step_max)
-                    # 平均损失
-                    loss = loss / grad_accumulation_steps
             
             # handle nan loss
             if torch.isnan(loss):
@@ -155,17 +144,12 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
                 # backpropagate
                 if dtype == torch.float32:
                     loss.backward()
+                    optimizer.step()
                 else:
                     scaler.scale(loss).backward()
-                
-                # 只在累积步数的最后一步更新参数
-                if batch_idx % grad_accumulation_steps == 0:
-                    if dtype != torch.float32:
-                        scaler.step(optimizer)
-                        scaler.update()
-                    else:
-                        optimizer.step()
-                    scheduler.step()
+                    scaler.step(optimizer)
+                    scaler.update()
+                scheduler.step()
                 
             # log loss
             if saver.global_step % args.train.interval_log == 0:
@@ -178,14 +162,14 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
                         args.env.expdir,
                         args.train.interval_log/saver.get_interval_time(),
                         current_lr,
-                        loss.item() * grad_accumulation_steps,  # 显示实际损失值
+                        loss.item(),
                         saver.get_total_time(),
                         saver.global_step
                     )
                 )
                 
                 saver.log_value({
-                    'train/loss': loss.item() * grad_accumulation_steps  # 记录实际损失值
+                    'train/loss': loss.item()
                 })
                 
                 saver.log_value({
@@ -217,3 +201,5 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
                 })
                 
                 model.train()
+
+                          
