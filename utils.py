@@ -594,9 +594,13 @@ class Volume_Extractor:
     def extract(self, audio): # audio: 2d tensor array
         if not isinstance(audio,torch.Tensor):
            audio = torch.Tensor(audio)
+        
+        # 修复: 确保音频值在合理范围内，避免平方后溢出
+        audio = torch.clamp(audio, min=-1.0, max=1.0)
+        
         n_frames = int(audio.size(-1) // self.hop_size)
         audio2 = audio ** 2
         audio2 = torch.nn.functional.pad(audio2, (int(self.hop_size // 2), int((self.hop_size + 1) // 2)), mode = 'reflect')
         volume = torch.nn.functional.unfold(audio2[:,None,None,:],(1,self.hop_size),stride=self.hop_size)[:,:,:n_frames].mean(dim=1)[0]
-        volume = torch.sqrt(volume)
+        volume = torch.sqrt(volume + 1e-10)  # 添加小量避免 sqrt(0)
         return volume

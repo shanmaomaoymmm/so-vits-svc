@@ -1,7 +1,20 @@
 import logging
 import multiprocessing
 import os
+import sys
 import time
+
+# XPU 环境变量必须在 import torch 之前设置！
+# Intel Arc A770 优化
+os.environ['NEOReadDebugKeys'] = '1'
+os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
+os.environ['SYCL_CACHE_PERSISTENT'] = '1'
+os.environ['ONEDEV_ENABLE_PROFILING'] = '0'
+os.environ['ZE_AFFINITY_MASK'] = '0'
+os.environ['LevelZeroEnableLargeBar'] = '1'
+# 关键：限制线程数避免系统崩溃（2线程足够，不会耗尽内存）
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['MKL_NUM_THREADS'] = '2'
 
 import torch
 import torch.distributed as dist
@@ -87,13 +100,12 @@ def safe_load_latest_checkpoint(model_dir, model_name_pattern, model, optimizer=
 def main():
     """Assume Single Node Multi GPUs Training Only"""
     # 检测设备类型 - 仅支持XPU设备
+    # 环境变量已在文件顶部 import torch 之前设置
     if torch.xpu.is_available():
         n_gpus = torch.xpu.device_count()
         device_type = 'xpu'
         print(f"XPU devices available: {n_gpus}, using XPU backend")
-        # 设置Intel特定的环境变量
-        os.environ['NEOReadDebugKeys'] = '1'
-        os.environ['ClDeviceGlobalMemSizeAvailablePercent'] = '100'
+        print(f"XPU optimization enabled for Intel Arc A770 16GB with {multiprocessing.cpu_count()} CPU cores")
     else:
         raise RuntimeError(
             "No XPU device available. Training requires an Intel GPU.")
@@ -134,35 +146,54 @@ def run(rank, n_gpus, hps, device_type):
 
     torch.manual_seed(hps.train.seed)
 
+    if rank == 0:
+        print(f"[DEBUG] Setting up DataLoader...")
     collate_fn = TextAudioCollate()
     # If you have enough memory, turn on this option to avoid disk IO and speed up training.
     all_in_mem = hps.train.all_in_mem
+    
+    if rank == 0:
+        print(f"[DEBUG] Creating dataset (all_in_mem={all_in_mem})...")
     train_dataset = TextAudioSpeakerLoader(
         hps.data.training_files, hps, all_in_mem=all_in_mem)
+    if rank == 0:
+        print(f"[DEBUG] Dataset created, size={len(train_dataset)}")
 
-    # 优化数据加载器参数
-    num_workers = getattr(hps.train, 'num_workers', 8) if multiprocessing.cpu_count(
-    ) >= 8 else min(multiprocessing.cpu_count(), 8)
+    # Intel Arc A770 16GB + 64GB RAM 优化配置
+    cpu_count = multiprocessing.cpu_count()
+    
     if all_in_mem:
-        num_workers = 0  # 如果数据全部加载到内存，不需要额外的worker
-
-    # 根据num_workers决定是否设置prefetch_factor
+        # 数据全部在内存时，减少worker数量避免冗余复制
+        num_workers = 0  # 改为0避免多进程问题
+        prefetch_factor = None
+        pin_memory = False  # 数据已在内存，不需要pin
+    else:
+        # 磁盘加载模式：优化数据预取
+        # A770有16GB显存，可以使用较多的worker和prefetch
+        num_workers = 2  # 降低worker数量
+        prefetch_factor = 2
+        pin_memory = True  # 启用pin memory加速H2D传输
+    
+    if rank == 0:
+        print(f"[DEBUG] Creating DataLoader (workers={num_workers})...")
+    # 训练数据加载器配置
     train_loader_kwargs = {
         'dataset': train_dataset,
         'num_workers': num_workers,
         'shuffle': False,
-        'pin_memory': getattr(hps.train, 'pin_memory', True),
-        'persistent_workers': getattr(hps.train, 'persistent_workers', True) and num_workers > 0,
+        'pin_memory': pin_memory,
+        'persistent_workers': False,  # 禁用persistent_workers减少问题
         'batch_size': hps.train.batch_size,
         'collate_fn': collate_fn
     }
-
-    # 只有当num_workers > 0时才设置prefetch_factor
-    if num_workers > 0:
-        train_loader_kwargs['prefetch_factor'] = getattr(
-            hps.train, 'prefetch_factor', 2)
+    
+    # 只在num_workers > 0且非all_in_mem时设置prefetch_factor
+    if num_workers > 0 and prefetch_factor is not None:
+        train_loader_kwargs['prefetch_factor'] = prefetch_factor
 
     train_loader = DataLoader(**train_loader_kwargs)
+    if rank == 0:
+        print(f"[DEBUG] DataLoader created")
 
     if rank == 0:
         eval_dataset = TextAudioSpeakerLoader(
@@ -181,6 +212,8 @@ def run(rank, n_gpus, hps, device_type):
     # 根据设备类型将模型移动到对应设备
     if device_type == 'xpu':
         device = torch.device(f'xpu:{rank}')
+        # 注意：torch.xpu.set_per_process_memory_fraction 在当前版本不可用
+        # XPU 会自动管理显存，无需手动设置
     else:
         raise RuntimeError(f"Unsupported device type: {device_type}")
 
@@ -189,6 +222,9 @@ def run(rank, n_gpus, hps, device_type):
         hps.train.segment_size // hps.data.hop_length,
         **hps.model).to(device)
     net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).to(device)
+    
+    # XPU 优化：fused optimizer 在 BF16 下可能有 FP64 兼容性问题
+    # 暂时禁用 fused，等待 PyTorch XPU 更新
     optim_g = torch.optim.AdamW(
         net_g.parameters(),
         hps.train.learning_rate,
@@ -243,62 +279,19 @@ def run(rank, n_gpus, hps, device_type):
         epoch_str = 1
         global_step = 0
 
+    if rank == 0:
+        print(f"[DEBUG] Checkpoint loaded. epoch_str={epoch_str}, global_step={global_step}")
+        print(f"[DEBUG] Creating schedulers...")
+
     warmup_epoch = hps.train.warmup_epochs
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
         optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
 
-    # 针对XPU设备的精度支持检测和处理
-    if device_type == 'xpu':
-        if hps.train.fp16_run:
-            # 检测XPU设备的精度支持情况
-            try:
-                # 测试基本精度支持
-                device = torch.device('xpu:0')
-                
-                # 测试FP32（应该总是支持）
-                fp32_test = torch.randn(10, 10, dtype=torch.float32, device=device)
-                
-                # 测试FP16支持
-                fp16_supported = False
-                try:
-                    fp16_test = torch.randn(10, 10, dtype=torch.float16, device=device)
-                    fp16_result = fp16_test + fp16_test
-                    fp16_supported = True
-                    print("XPU device supports FP16 operations")
-                except Exception:
-                    print("XPU device has limited FP16 support")
-                
-                # 测试BF16支持
-                bf16_supported = False
-                try:
-                    bf16_test = torch.randn(10, 10, dtype=torch.bfloat16, device=device)
-                    bf16_result = bf16_test + bf16_test
-                    bf16_supported = True
-                    print("XPU device supports BF16 operations")
-                except Exception:
-                    print("XPU device has limited BF16 support")
-                
-                # 根据支持情况给出建议
-                if fp16_supported or bf16_supported:
-                    print("XPU device supports mixed precision, keeping fp16_run enabled...")
-                    if bf16_supported and hasattr(hps.train, 'half_type'):
-                        if hps.train.half_type == 'fp16' and bf16_supported:
-                            print("Note: For Intel XPU, BF16 often provides better stability than FP16")
-                        elif hps.train.half_type == 'bf16':
-                            print("Using recommended BF16 precision for Intel XPU")
-                    elif not bf16_supported and hasattr(hps.train, 'half_type') and hps.train.half_type == 'bf16':
-                        print("Warning: BF16 not fully supported, consider using FP16 or FP32")
-                else:
-                    print("Warning: Limited mixed precision support detected")
-                    print("Consider using FP32 for maximum stability")
-                    
-            except Exception as e:
-                print(f"Precision detection error: {str(e)}")
-                print("Proceeding with configured precision settings...")
-        else:
-            print("fp16_run is disabled in config for XPU device")
+    if rank == 0:
+        print(f"[DEBUG] Schedulers created")
+        print(f"[DEBUG] Setting up GradScaler...")
 
     # 根据设备类型创建GradScaler
     if device_type == 'xpu':
@@ -306,6 +299,11 @@ def run(rank, n_gpus, hps, device_type):
     else:
         # CPU模式下不使用GradScaler
         scaler = GradScaler("cpu", enabled=False)
+
+    if rank == 0:
+        print(f"[DEBUG] GradScaler created (fp16_run={hps.train.fp16_run})")
+        print(f"[DEBUG] Starting training loop (epoch {epoch_str} to {hps.train.epochs})...")
+        sys.stdout.flush()
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
         # set up warm-up learning rate
@@ -337,6 +335,42 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         writer, writer_eval = writers
 
     half_type = torch.bfloat16 if hps.train.half_type == "bf16" else torch.float16
+    
+    # Intel XPU BF16 优化：BF16 不需要 GradScaler（数值范围与FP32相同）
+    # BF16: ±3.4×10³⁸ vs FP16: ±6.5×10⁴
+    use_grad_scaler = hps.train.fp16_run and half_type != torch.bfloat16
+    
+    if rank == 0 and hps.train.fp16_run and not use_grad_scaler:
+        print("[OPTIMIZATION] BF16 mode detected - GradScaler disabled (not needed for BF16)")
+        print("[OPTIMIZATION] BF16 has same exponent range as FP32, no gradient underflow risk")
+
+    # 根据设备类型获取device
+    if device_type == 'xpu':
+        device = torch.device(f'xpu:{rank}')
+    else:
+        raise RuntimeError(f"Unsupported device type: {device_type}")
+
+    # 在第一个epoch打印性能提示
+    if epoch == 1 and rank == 0:
+        print_xpu_performance_tips(rank, hps, device)
+        # 验证模型确实在 XPU 上
+        print("\n[DIAGNOSTIC] Verifying XPU execution:")
+        print(f"  net_g device: {next(net_g.parameters()).device}")
+        print(f"  net_d device: {next(net_d.parameters()).device}")
+        print(f"  Expected: xpu:{rank}")
+        # 关键断言：确保模型在 XPU 上
+        assert str(next(net_g.parameters()).device).startswith('xpu'), \
+            f"CRITICAL: net_g is on {next(net_g.parameters()).device}, expected XPU!"
+        assert str(next(net_d.parameters()).device).startswith('xpu'), \
+            f"CRITICAL: net_d is on {next(net_d.parameters()).device}, expected XPU!"
+        print("  ✓ Model parameters on XPU")
+        # 验证显存使用（如果只有几百MB说明没在XPU上跑）
+        torch.xpu.synchronize(device)
+        mem_mb = torch.xpu.memory_allocated(device) / 1024 / 1024
+        print(f"  XPU memory allocated: {mem_mb:.0f} MB")
+        if mem_mb < 500:
+            print(f"  ⚠️ WARNING: Only {mem_mb:.0f}MB on XPU - model may not be training!")
+        print("  ✓ XPU verification complete\n")
 
     # train_loader.batch_sampler.set_epoch(epoch)
     global global_step
@@ -349,40 +383,28 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
 
     for batch_idx, items in enumerate(train_loader):
         c, f0, spec, y, spk, lengths, uv, volume = items
-        g = spk.to(rank, non_blocking=True)
-        spec, y = spec.to(rank, non_blocking=True), y.to(
-            rank, non_blocking=True)
-        c = c.to(rank, non_blocking=True)
-        f0 = f0.to(rank, non_blocking=True)
-        uv = uv.to(rank, non_blocking=True)
-        lengths = lengths.to(rank, non_blocking=True)
-        # 确保volume也在正确的rank设备上
-        volume = volume.to(
-            rank, non_blocking=True) if volume is not None else None
-        mel = spec_to_mel_torch(
-            spec,
-            hps.data.filter_length,
-            hps.data.n_mel_channels,
-            hps.data.sampling_rate,
-            hps.data.mel_fmin,
-            hps.data.mel_fmax)
 
-        # 根据设备类型将数据移动到对应设备
+        # Intel XPU 优化：批量数据传输，减少PCIe传输次数
         if device_type == 'xpu':
             device = torch.device(f'xpu:{rank}')
+            # 使用非阻塞传输重叠计算和数据传输
+            g = spk.to(device, non_blocking=True)
+            spec = spec.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
+            c = c.to(device, non_blocking=True)
+            f0 = f0.to(device, non_blocking=True)
+            uv = uv.to(device, non_blocking=True)
+            lengths = lengths.to(device, non_blocking=True)
+            volume = volume.to(device, non_blocking=True) if volume is not None else None
+            
+            # XPU 优化：在数据传输后添加同步点，确保后续计算不会过早开始
+            # 对于A770 16GB，这个开销是值得的，可以避免后续的stall
+            if batch_idx % 100 == 0:  # 每100步同步一次用于监控
+                torch.xpu.synchronize(device)
         else:
             raise RuntimeError(f"Unsupported device type: {device_type}")
-
-        g = spk.to(device, non_blocking=True)
-        spec, y = spec.to(device, non_blocking=True), y.to(
-            device, non_blocking=True)
-        c = c.to(device, non_blocking=True)
-        f0 = f0.to(device, non_blocking=True)
-        uv = uv.to(device, non_blocking=True)
-        lengths = lengths.to(device, non_blocking=True)
-        # 确保volume也在正确的设备上
-        volume = volume.to(
-            device, non_blocking=True) if volume is not None else None
+        
+        # 预计算 mel 谱（在GPU上进行）
         mel = spec_to_mel_torch(
             spec,
             hps.data.filter_length,
@@ -418,36 +440,33 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             with autocast(device_type=device_type, enabled=False, dtype=half_type):
                 loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
                     y_d_hat_r, y_d_hat_g)
-                loss_disc_all = loss_disc / grad_accumulation_steps  # 平均损失
+                loss_disc_all = loss_disc / grad_accumulation_steps
 
-        # 只在累积步数的最后一步更新参数
-        if batch_idx % grad_accumulation_steps == 0:
-            optim_d.zero_grad()
-
-        # 根据设备类型选择是否使用GradScaler
-        if device_type != 'xpu' and hps.train.fp16_run:
-            # 非XPU设备且启用fp16时使用GradScaler
+        # Discriminator backward (梯度累积)
+        if use_grad_scaler:
             scaler.scale(loss_disc_all).backward()
-            # 检查是否需要进行梯度缩放
-            if hps.train.fp16_run:
-                # 仅在fp16_run启用时进行梯度缩放
+        else:
+            loss_disc_all.backward()
+
+        # 只在累积的最后一步更新参数
+        if (batch_idx + 1) % grad_accumulation_steps == 0 or (batch_idx + 1) == len(train_loader):
+            if use_grad_scaler:
                 try:
                     scaler.unscale_(optim_d)
                 except RuntimeError as e:
                     if "fp64" in str(e) or "aspect" in str(e):
-                        # 如果遇到fp64错误，跳过unscale步骤
                         pass
                     else:
                         raise e
-
-            grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
-            scaler.step(optim_d)
-            scaler.update()
-        else:
-            # XPU设备或未启用fp16时，直接进行反向传播
-            loss_disc_all.backward()
-            grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
-            optim_d.step()
+                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
+                grad_norm_d = commons.clip_grad_value_(net_d.parameters(), grad_clip_value)
+                scaler.step(optim_d)
+                scaler.update()
+            else:
+                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
+                grad_norm_d = commons.clip_grad_value_(net_d.parameters(), grad_clip_value)
+                optim_d.step()
+            optim_d.zero_grad()
 
         # Generator
         y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
@@ -474,37 +493,34 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 loss_gen_all = (loss_gen + loss_fm + loss_mel +
                                 loss_kl + loss_lf0) / grad_accumulation_steps
 
-        if batch_idx % grad_accumulation_steps == 0:
-            optim_g.zero_grad()
-
-        # 根据设备类型选择是否使用GradScaler
-        if device_type != 'xpu' and hps.train.fp16_run:
-            # 非XPU设备且启用fp16时使用GradScaler
+        # Generator backward (梯度累积)
+        if use_grad_scaler:
             scaler.scale(loss_gen_all).backward()
-            # 检查是否需要进行梯度缩放
-            if hps.train.fp16_run:
-                # 仅在fp16_run启用时进行梯度缩放
+        else:
+            loss_gen_all.backward()
+
+        # 只在累积的最后一步更新参数
+        if (batch_idx + 1) % grad_accumulation_steps == 0 or (batch_idx + 1) == len(train_loader):
+            if use_grad_scaler:
                 try:
                     scaler.unscale_(optim_g)
                 except RuntimeError as e:
                     if "fp64" in str(e) or "aspect" in str(e):
-                        # 如果遇到fp64错误，跳过unscale步骤
                         pass
                     else:
                         raise e
+                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
+                grad_norm_g = commons.clip_grad_value_(net_g.parameters(), grad_clip_value)
+                scaler.step(optim_g)
+                scaler.update()
+            else:
+                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
+                grad_norm_g = commons.clip_grad_value_(net_g.parameters(), grad_clip_value)
+                optim_g.step()
+            optim_g.zero_grad()
 
-            grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
-            scaler.step(optim_g)
-            scaler.update()
-        else:
-            # XPU设备或未启用fp16时，直接进行反向传播
-            loss_gen_all.backward()
-            # 添加梯度裁剪以提高稳定性
-            grad_norm_g = torch.nn.utils.clip_grad_norm_(net_g.parameters(), max_norm=1.0)
-            optim_g.step()
-        # 梯度累积：只有在累积步数的最后一步才增加global_step和进行日志记录
-        if batch_idx % grad_accumulation_steps != 0:
-            # 如果不是累积步数的最后一步，跳过后续的日志和验证步骤
+        # 梯度累积：只有在累积步数的最后一步才进行日志和验证
+        if (batch_idx + 1) % grad_accumulation_steps != 0 and (batch_idx + 1) != len(train_loader):
             continue
 
         if rank == 0:
@@ -665,6 +681,32 @@ def evaluate(hps, generator, eval_loader, writer_eval, device_type):
         audio_sampling_rate=hps.data.sampling_rate
     )
     generator.train()
+
+
+def print_xpu_performance_tips(rank, hps, device):
+    """打印Intel XPU性能优化提示"""
+    if rank == 0:
+        print("\n" + "=" * 70)
+        print("Intel Arc A770 16GB Training Optimization Tips")
+        print("=" * 70)
+        print(f"✓ Data Loading: {'all_in_mem' if hps.train.all_in_mem else 'disk-based'} mode")
+        print(f"✓ Mixed Precision: {hps.train.half_type if hps.train.fp16_run else 'disabled'}")
+        print(f"✓ Batch Size: {hps.train.batch_size}")
+        
+        # 显存使用情况
+        try:
+            mem_allocated = torch.xpu.memory_allocated(device) / 1024**3
+            mem_reserved = torch.xpu.memory_reserved(device) / 1024**3
+            print(f"✓ XPU Memory: {mem_allocated:.2f}GB allocated, {mem_reserved:.2f}GB reserved")
+        except:
+            pass
+        
+        print("\nPerformance Recommendations:")
+        print("  • For 16GB VRAM: batch_size 8-16 is optimal")
+        print("  • Use BF16 for better stability on Intel XPU")
+        print("  • Enable all_in_mem if dataset < 64GB RAM")
+        print("  • Monitor with: intel_gpu_top -J")
+        print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

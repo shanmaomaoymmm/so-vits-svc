@@ -1,7 +1,7 @@
 {
   "train": {
     "log_interval": 200,
-    "eval_interval": 1000,
+    "eval_interval": 800,
     "seed": 1234,
     "epochs": 10000,
     "learning_rate": 0.0001,
@@ -10,22 +10,23 @@
       0.99
     ],
     "eps": 1e-09,
-    "batch_size": 16,
+    "batch_size": 12,
     "fp16_run": true,
     "half_type": "bf16",
     "lr_decay": 0.999875,
     "segment_size": 10240,
     "init_lr_ratio": 1,
     "warmup_epochs": 0,
-    "c_mel": 25,
+    "c_mel": 45,
     "c_kl": 1.0,
-    "c_fm": 0.5,
+    "c_fm": 1.0,
     "use_sr": true,
     "max_speclen": 512,
     "port": "8001",
-    "keep_ckpts": 24,
+    "keep_ckpts": 8,
     "all_in_mem": true,
-    "vol_aug": true
+    "vol_aug": false,
+    "grad_clip": 100.0
   },
   "data": {
     "training_files": "filelists/train.txt",
@@ -96,7 +97,7 @@
     "vocoder_name": "nsf-hifigan",
     "speech_encoder": "vec768l12",
     "speaker_embedding": false,
-    "vol_embedding": true,
+    "vol_embedding": false,
     "use_depthwise_conv": false,
     "flow_share_parameter": false,
     "use_automatic_f0_prediction": true,

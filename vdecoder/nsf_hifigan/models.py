@@ -148,7 +148,9 @@ class SineGen(torch.nn.Module):
         rand_ini[:, 0] = 0
         rad_values[:, 0, :] = rad_values[:, 0, :] + rand_ini
         is_half = rad_values.dtype is not torch.float32
-        tmp_over_one = torch.cumsum(rad_values.double(), 1)  # % 1  #####%1意味着后面的cumsum无法再优化
+        # Intel XPU 优化：使用 float32 而非 double，避免 FP64 fallback
+        # cumsum 在 float32 下精度足够（rad_values 范围 0-1）
+        tmp_over_one = torch.cumsum(rad_values.float(), 1)
         if is_half:
             tmp_over_one = tmp_over_one.half()
         else:
@@ -163,8 +165,9 @@ class SineGen(torch.nn.Module):
         tmp_over_one_idx = (tmp_over_one[:, 1:, :] - tmp_over_one[:, :-1, :]) < 0
         cumsum_shift = torch.zeros_like(rad_values)
         cumsum_shift[:, 1:, :] = tmp_over_one_idx * -1.0
-        rad_values = rad_values.double()
-        cumsum_shift = cumsum_shift.double()
+        # Intel XPU 优化：使用 float32 而非 double
+        rad_values = rad_values.float()
+        cumsum_shift = cumsum_shift.float()
         sine_waves = torch.sin(torch.cumsum(rad_values + cumsum_shift, dim=1) * 2 * np.pi)
         if is_half:
             sine_waves = sine_waves.half()

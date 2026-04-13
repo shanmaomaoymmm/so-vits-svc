@@ -175,9 +175,11 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
 
   total_norm = 0
   for p in parameters:
-    param_norm = p.grad.data.norm(norm_type)
-    total_norm += param_norm.item() ** norm_type
+    # 先裁剪梯度
     if clip_value is not None:
       p.grad.data.clamp_(min=-clip_value, max=clip_value)
+    # 再计算裁剪后的梯度范数
+    param_norm = p.grad.data.norm(norm_type)
+    total_norm += param_norm.item() ** norm_type
   total_norm = total_norm ** (1. / norm_type)
   return total_norm

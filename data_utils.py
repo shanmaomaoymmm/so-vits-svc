@@ -99,7 +99,8 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
         if random.choice([True, False]) and self.vol_aug and volume is not None:
             max_amp = float(torch.max(torch.abs(audio_norm))) + 1e-5
             max_shift = min(1, np.log10(1/max_amp))
-            log10_vol_shift = random.uniform(-1, max_shift)
+            # 修复: 限制音量增强范围，避免数值爆炸 (-3dB 到 +max_shift)
+            log10_vol_shift = random.uniform(-0.5, max_shift)
             audio_norm = audio_norm * (10 ** log10_vol_shift)
             volume = volume * (10 ** log10_vol_shift)
             spec = spectrogram_torch(audio_norm,

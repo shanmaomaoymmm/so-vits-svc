@@ -91,7 +91,8 @@ def process_one(filename, hmodel, f0p, device, diff=False, mel_extractor=None):
         aug_vol_path = filename + ".aug_vol.npy"
         max_amp = float(torch.max(torch.abs(audio_norm))) + 1e-5
         max_shift = min(1, np.log10(1/max_amp))
-        log10_vol_shift = random.uniform(-1, max_shift)
+        # 修复: 限制音量增强范围，避免数值爆炸 (-3dB 到 +max_shift)
+        log10_vol_shift = random.uniform(-0.5, max_shift)
         keyshift = random.uniform(-5, 5)
         if mel_extractor is not None:
             aug_mel_t = mel_extractor.extract(audio_norm * (10 ** log10_vol_shift), sampling_rate, keyshift = keyshift)

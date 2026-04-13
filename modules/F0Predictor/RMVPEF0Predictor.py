@@ -101,6 +101,15 @@ class RMVPEF0Predictor(F0Predictor):
         else:
             assert abs(p_len-x.shape[0]//self.hop_length) < 4, "pad length error"
         f0 = self.rmvpe.infer_from_audio(x,self.sampling_rate,self.threshold)
+        
+        # 修复: 检查并处理 NaN/Inf
+        if torch.isnan(f0).any() or torch.isinf(f0).any():
+            print(f"Warning: F0 contains NaN or Inf, replacing with zeros")
+            f0 = torch.zeros_like(f0)
+        
+        # 修复: 裁剪 F0 到合理范围 (50-1100 Hz)
+        f0 = torch.clamp(f0, min=0, max=1100)
+        
         if torch.all(f0 == 0):
             rtn = f0.cpu().numpy() if p_len is None else np.zeros(p_len)
             return rtn,rtn
