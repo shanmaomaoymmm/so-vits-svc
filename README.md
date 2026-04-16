@@ -4,11 +4,11 @@
 
 ![wmm](./doc/img/1701608234384.png)
 
-📻 基于So-VITS-SVC模型的训练推理框架，专为Intel显卡优化设计。
+📻 基于So-VITS-SVC模型的音色训练推理框架，专为Intel显卡优化设计。
 
 ## ⚠️ 重要声明
 
-1. 此项目**仅支持Intel独显/核显(XPU)**，已完全移除CUDA支持，请勿在NVIDIA等其他平台使用；
+1. 此项目**仅支持Intel独显/核显(XPU)**，不支持NVDIA、AMD等GPU，请勿在其他平台使用；
 2. 本项目为开源、离线的项目，**不能收集任何用户信息或获取用户输入数据**，不负责任何用户输入。本项目**不向任何组织、个人提供任何形式的支持**，故一切基于本项目训练的 AI 模型和合成的音频都**与本项目贡献者无关**。一切由此造成的问题**由使用者自行承担**；
 3. 本项目只是一个框架项目，没有任何模型，任何二次分发的项目都与这个项目的贡献者无关；
 4. 请自行解决数据集授权问题，**禁止使用非授权数据集进行训练**。任何由于使用非授权数据集进行训练造成的问题，需**自行承担全部责任和后果**。
@@ -17,11 +17,11 @@
 
 本项目是基于[So-Vits-SVC](https://github.com/svc-develop-team/so-vits-svc)项目，原项目版本为`4.1-Stable`，使用PyTorch+XPU，专为Intel显卡优化。用于声音音色转换、AI翻唱等功能。通过SoftVC内容编码器提取源音频语音特征。
 
-## 🚗 支持的Intel GPU硬件
+## 🚗 已经测试过的GPU硬件
 
 + Intel Iris Xe Graphics eligible
-+ 英特尔锐炫 A380 显卡
-+ 英特尔锐炫 A770 显卡
++ Intel Arc A380 Graphics Card
++ Intel Arc A770 Graphics Card
   
 
 ## 🧪 环境配置
@@ -574,13 +574,12 @@ This project is based on the [So-Vits-SVC](https://github.com/svc-develop-team/s
 
 This project uses Python 3.11, theoretically supports higher Python versions, but has not been tested yet.  
 Since PyTorch+XPU requires a minimum of Python 3.10, you need to install Python 3.10 or above.
-Windows
 ```bash
 # Windows
 winget install --id Python.Python.3.11
 
 # Ubuntu
-sudo apt install python3.11 python3.11-venv
+sudo apt install python3.11 python3.11-dev python3.11-venv
 
 # Fedora
 sudo dnf install python3.11 python3.11-devel python3.11-pip
@@ -590,7 +589,11 @@ sudo dnf install python3.11 python3.11-devel python3.11-pip
 
 Execute terminal commands in the project root directory to create a virtual environment
 ```bash
+# Windows
 py -3.11 -m venv venv
+
+# Linux
+python3.11 -m venv venv
 ```
 
 Activate the virtual environment
@@ -610,8 +613,11 @@ Current PyTorch officially supports Intel graphics cards, so just install PyTorc
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
 
-# Download slowly or frequently terminated, you can use Nanjing University mirror source
-pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu/
+# Download slowly or frequently terminated, you can use mirror sources
+# Nanjing University
+pip install torch torchvision torchaudio --index-url https://mirrors.nju.edu.cn/pytorch/whl/xpu
+# Shanghai Jiao Tong University
+pip install torch torchvision torchaudio --index-url https://mirror.sjtu.edu.cn/pytorch-wheels/xpu
 ```
 
 **Install Other Dependencies**
@@ -995,75 +1001,6 @@ Export the model to ONNX format for deployment:
 ```
 python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
 ```
-
-## ⚙️ XPU设备训练建议
-
-对于Intel XPU设备，建议使用以下配置以获得最佳性能和稳定性：
-
-1. **混合精度支持**: 现代Intel XPU设备通常支持完整的FP16/BF16混合精度训练
-   - **FP32**: 完全支持，最稳定的选项
-   - **FP16**: 基本支持，性能提升显著
-   - **BF16**: 推荐选项，Intel XPU上的最佳选择，提供良好的性能和稳定性
-
-2. **精度支持检测**:
-   运行以下脚本快速检测您的XPU设备精度支持情况：
-   ```bash
-   python check_xpu_precision.py
-   ```
-
-3. **推荐配置参数**:
-   
-   **推荐配置（BF16）**:
-   ```json
-   {
-     "train": {
-       "batch_size": 6,
-       "fp16_run": true,
-       "half_type": "bf16",
-       "grad_accumulation_steps": 2,
-       "all_in_mem": false
-     }
-   }
-   ```
-   
-   **备选配置（FP16）**:
-   ```json
-   {
-     "train": {
-       "batch_size": 6,
-       "fp16_run": true,
-       "half_type": "fp16",
-       "grad_accumulation_steps": 2,
-       "all_in_mem": false
-     }
-   }
-   ```
-   
-   **稳定配置（FP32）**:
-   ```json
-   {
-     "train": {
-       "batch_size": 4,
-       "fp16_run": false,
-       "half_type": "fp32",
-       "grad_accumulation_steps": 4,
-       "all_in_mem": false
-     }
-   }
-   ```
-
-4. **性能优化建议**:
-   - **BF16优先**: 对于Intel XPU，BF16通常是最佳选择
-   - **合理batch_size**: 根据显存调整，通常4-8之间
-   - **梯度累积**: 使用grad_accumulation_steps模拟更大batch_size
-   - **内存管理**: 禁用all_in_mem避免内存溢出
-   - **定期清理**: 训练中定期调用torch.xpu.empty_cache()
-
-5. **故障排除**:
-   - 如果遇到训练不稳定，逐步降低精度（BF16 → FP16 → FP32）
-   - 监控显存使用，适当调整batch_size和grad_accumulation_steps
-   - 确保驱动程序和PyTorch XPU版本为最新
-   - 查看训练日志中的精度检测信息
 
 ## 🛑 Known Issues
 
