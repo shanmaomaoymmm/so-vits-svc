@@ -184,7 +184,8 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimizer=False
     if optimizer is not None and not skip_optimizer and checkpoint_dict['optimizer'] is not None:
         optimizer.load_state_dict(checkpoint_dict['optimizer'])
     saved_state_dict = checkpoint_dict['model']
-    model = model.to(list(saved_state_dict.values())[0].dtype)
+    # 确保模型权重类型与当前模型一致，避免 BF16/FP16 切换时的类型冲突
+    target_dtype = next(model.parameters()).dtype
     if hasattr(model, 'module'):
         state_dict = model.module.state_dict()
     else:
@@ -192,10 +193,12 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimizer=False
     new_state_dict = {}
     for k, v in state_dict.items():
         try:
-            # assert "dec" in k or "disc" in k
-            # print("load", k)
-            new_state_dict[k] = saved_state_dict[k]
-            assert saved_state_dict[k].shape == v.shape, (saved_state_dict[k].shape, v.shape)
+            param_from_ckpt = saved_state_dict[k]
+            # 如果 checkpoint 中的参数类型与模型不匹配，进行转换
+            if param_from_ckpt.dtype != v.dtype:
+                param_from_ckpt = param_from_ckpt.to(v.dtype)
+            new_state_dict[k] = param_from_ckpt
+            assert param_from_ckpt.shape == v.shape, (param_from_ckpt.shape, v.shape)
         except Exception:
             if "enc_q" not in k or "emb_g" not in k:
               print("%s is not in the checkpoint,please check your checkpoint.If you're using pretrain model,just ignore this warning." % k)

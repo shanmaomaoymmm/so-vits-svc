@@ -229,7 +229,9 @@ class MaskedMedianPool1d(nn.Module):
 
         # Combine the mask with the input tensor
         #x_masked = torch.where(mask.bool(), x, torch.fill_(torch.zeros_like(x),float("inf")))
-        x_masked = torch.where(mask.bool(), x, torch.FloatTensor([float("inf")]).to(x.device))
+        # 修复: 使用与输入张量相同类型的 Inf 值，避免 XPU 上的类型警告
+        inf_value = torch.tensor(float("inf"), dtype=x.dtype, device=x.device)
+        x_masked = torch.where(mask.bool(), x, inf_value)
 
         # Sort the masked tensor along the last dimension
         x_sorted, _ = torch.sort(x_masked, dim=-1)

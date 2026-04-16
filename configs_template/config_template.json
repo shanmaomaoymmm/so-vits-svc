@@ -25,7 +25,10 @@
     "port": "8001",
     "keep_ckpts": 3,
     "all_in_mem": false,
-    "vol_aug":false
+    "vol_aug":false,
+    "grad_clip": 1.0,
+    "grad_clip_d": 10.0,
+    "grad_clip_g": 1.0
   },
   "data": {
     "training_files": "filelists/train.txt",

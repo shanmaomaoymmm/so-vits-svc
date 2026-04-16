@@ -143,20 +143,15 @@ class TextAudioCollate:
 
         lengths = torch.LongTensor(len(batch))
 
-        c_padded = torch.FloatTensor(len(batch), batch[0][0].shape[0], max_c_len)
-        f0_padded = torch.FloatTensor(len(batch), max_c_len)
-        spec_padded = torch.FloatTensor(len(batch), batch[0][2].shape[0], max_c_len)
-        wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
+        # 根据第一个样本的类型确定张量类型，以支持 BF16/FP16 训练
+        sample_dtype = batch[0][0].dtype 
+        c_padded = torch.zeros(len(batch), batch[0][0].shape[0], max_c_len, dtype=sample_dtype)
+        f0_padded = torch.zeros(len(batch), max_c_len, dtype=sample_dtype)
+        spec_padded = torch.zeros(len(batch), batch[0][2].shape[0], max_c_len, dtype=sample_dtype)
+        wav_padded = torch.zeros(len(batch), 1, max_wav_len, dtype=sample_dtype)
         spkids = torch.LongTensor(len(batch), 1)
-        uv_padded = torch.FloatTensor(len(batch), max_c_len)
-        volume_padded = torch.FloatTensor(len(batch), max_c_len)
-
-        c_padded.zero_()
-        spec_padded.zero_()
-        f0_padded.zero_()
-        wav_padded.zero_()
-        uv_padded.zero_()
-        volume_padded.zero_()
+        uv_padded = torch.zeros(len(batch), max_c_len, dtype=sample_dtype)
+        volume_padded = torch.zeros(len(batch), max_c_len, dtype=sample_dtype)
 
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -181,6 +176,4 @@ class TextAudioCollate:
             volume = row[6]
             if volume is not None:
                 volume_padded[i, :volume.size(0)] = volume
-            else :
-                volume_padded = None
         return c_padded, f0_padded, spec_padded, wav_padded, spkids, lengths, uv_padded, volume_padded

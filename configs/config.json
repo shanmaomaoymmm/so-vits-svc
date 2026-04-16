@@ -26,7 +26,9 @@
     "keep_ckpts": 8,
     "all_in_mem": true,
     "vol_aug": false,
-    "grad_clip": 100.0
+    "grad_clip": 1.0,
+    "grad_clip_d": 10.0,
+    "grad_clip_g": 1.0
   },
   "data": {
     "training_files": "filelists/train.txt",
@@ -96,7 +98,7 @@
     "n_speakers": 1,
     "vocoder_name": "nsf-hifigan",
     "speech_encoder": "vec768l12",
-    "speaker_embedding": false,
+    "speaker_embedding": true,
     "vol_embedding": false,
     "use_depthwise_conv": false,
     "flow_share_parameter": false,

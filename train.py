@@ -167,12 +167,14 @@ def run(rank, n_gpus, hps, device_type):
         num_workers = 0  # 改为0避免多进程问题
         prefetch_factor = None
         pin_memory = False  # 数据已在内存，不需要pin
+        persistent_workers = False
     else:
         # 磁盘加载模式：优化数据预取
         # A770有16GB显存，可以使用较多的worker和prefetch
-        num_workers = 2  # 降低worker数量
+        num_workers = min(4, cpu_count // 2)  # 根据CPU核心数动态调整
         prefetch_factor = 2
         pin_memory = True  # 启用pin memory加速H2D传输
+        persistent_workers = os.name != 'nt'  # Linux下启用persistent workers提高性能
     
     if rank == 0:
         print(f"[DEBUG] Creating DataLoader (workers={num_workers})...")
@@ -182,7 +184,7 @@ def run(rank, n_gpus, hps, device_type):
         'num_workers': num_workers,
         'shuffle': False,
         'pin_memory': pin_memory,
-        'persistent_workers': False,  # 禁用persistent_workers减少问题
+        'persistent_workers': persistent_workers if num_workers > 0 else False,
         'batch_size': hps.train.batch_size,
         'collate_fn': collate_fn
     }
@@ -284,10 +286,12 @@ def run(rank, n_gpus, hps, device_type):
         print(f"[DEBUG] Creating schedulers...")
 
     warmup_epoch = hps.train.warmup_epochs
+    # 从头训练时，last_epoch 应该为 -1（PyTorch 默认值）
+    scheduler_last_epoch = epoch_str - 2 if epoch_str > 1 else -1
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
-        optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
+        optim_g, gamma=hps.train.lr_decay, last_epoch=scheduler_last_epoch)
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-        optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2)
+        optim_d, gamma=hps.train.lr_decay, last_epoch=scheduler_last_epoch)
 
     if rank == 0:
         print(f"[DEBUG] Schedulers created")
@@ -397,9 +401,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
             lengths = lengths.to(device, non_blocking=True)
             volume = volume.to(device, non_blocking=True) if volume is not None else None
             
-            # XPU 优化：在数据传输后添加同步点，确保后续计算不会过早开始
-            # 对于A770 16GB，这个开销是值得的，可以避免后续的stall
-            if batch_idx % 100 == 0:  # 每100步同步一次用于监控
+            # XPU 优化：仅在日志记录间隔同步，减少不必要的 stall
+            if global_step % hps.train.log_interval == 0:
                 torch.xpu.synchronize(device)
         else:
             raise RuntimeError(f"Unsupported device type: {device_type}")
@@ -454,17 +457,23 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 try:
                     scaler.unscale_(optim_d)
                 except RuntimeError as e:
-                    if "fp64" in str(e) or "aspect" in str(e):
-                        pass
+                    if "fp64" in str(e):
+                        print(f"Warning: FP64 aspect error during unscale, skipping: {e}")
                     else:
                         raise e
-                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
-                grad_norm_d = commons.clip_grad_value_(net_d.parameters(), grad_clip_value)
+                grad_clip_value_d = getattr(hps.train, 'grad_clip_d', getattr(hps.train, 'grad_clip', 5.0))
+                # 先计算裁剪前的梯度范数用于监控
+                grad_norm_d_before_clip = torch.nn.utils.clip_grad_norm_(net_d.parameters(), float('inf'))
+                # 再进行实际的梯度裁剪
+                grad_norm_d = torch.nn.utils.clip_grad_norm_(net_d.parameters(), grad_clip_value_d)
                 scaler.step(optim_d)
                 scaler.update()
             else:
-                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
-                grad_norm_d = commons.clip_grad_value_(net_d.parameters(), grad_clip_value)
+                grad_clip_value_d = getattr(hps.train, 'grad_clip_d', getattr(hps.train, 'grad_clip', 5.0))
+                # 先计算裁剪前的梯度范数用于监控
+                grad_norm_d_before_clip = torch.nn.utils.clip_grad_norm_(net_d.parameters(), float('inf'))
+                # 再进行实际的梯度裁剪
+                grad_norm_d = torch.nn.utils.clip_grad_norm_(net_d.parameters(), grad_clip_value_d)
                 optim_d.step()
             optim_d.zero_grad()
 
@@ -505,17 +514,35 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 try:
                     scaler.unscale_(optim_g)
                 except RuntimeError as e:
-                    if "fp64" in str(e) or "aspect" in str(e):
-                        pass
+                    if "fp64" in str(e):
+                        print(f"Warning: FP64 aspect error during unscale, skipping: {e}")
                     else:
                         raise e
-                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
-                grad_norm_g = commons.clip_grad_value_(net_g.parameters(), grad_clip_value)
+                grad_clip_value_g = getattr(hps.train, 'grad_clip_g', getattr(hps.train, 'grad_clip', 1.0))
+                # 先计算裁剪前的梯度范数用于监控
+                grad_norm_g_before_clip = torch.nn.utils.clip_grad_norm_(net_g.parameters(), float('inf'))
+                # 再进行实际的梯度裁剪
+                grad_norm_g = torch.nn.utils.clip_grad_norm_(net_g.parameters(), grad_clip_value_g)
+                
+                # 如果梯度过大，输出警告
+                if grad_norm_g_before_clip > grad_clip_value_g * 10:
+                    print(f"[WARNING] Gradient explosion detected! "
+                          f"grad_norm_g: {grad_norm_g_before_clip:.2f} (clipped to {grad_clip_value_g}) "
+                          f"at step {global_step}")
                 scaler.step(optim_g)
                 scaler.update()
             else:
-                grad_clip_value = getattr(hps.train, 'grad_clip', 100.0)
-                grad_norm_g = commons.clip_grad_value_(net_g.parameters(), grad_clip_value)
+                grad_clip_value_g = getattr(hps.train, 'grad_clip_g', getattr(hps.train, 'grad_clip', 1.0))
+                # 先计算裁剪前的梯度范数用于监控
+                grad_norm_g_before_clip = torch.nn.utils.clip_grad_norm_(net_g.parameters(), float('inf'))
+                # 再进行实际的梯度裁剪
+                grad_norm_g = torch.nn.utils.clip_grad_norm_(net_g.parameters(), grad_clip_value_g)
+                
+                # 如果梯度过大，输出警告
+                if grad_norm_g_before_clip > grad_clip_value_g * 10:
+                    print(f"[WARNING] Gradient explosion detected! "
+                          f"grad_norm_g: {grad_norm_g_before_clip:.2f} (clipped to {grad_clip_value_g}) "
+                          f"at step {global_step}")
                 optim_g.step()
             optim_g.zero_grad()
 

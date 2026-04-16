@@ -113,8 +113,15 @@ class STFT():
         y = y.squeeze(1)
         
         spec = torch.stft(y, n_fft_new, hop_length=hop_length_new, win_length=win_size_new, window=hann_window[keyshift_key],
-                          center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=True)                          
+                          center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=True)
+        
+        # 确保在计算幅度时保持精度，特别是对于 BF16
+        spec_dtype = spec.dtype
+        if spec.dtype == torch.bfloat16:
+            spec = spec.to(torch.float32)
+            
         spec = torch.sqrt(spec.real.pow(2) + spec.imag.pow(2) + (1e-9))
+        spec = spec.to(spec_dtype)
         if keyshift != 0:
             size = n_fft // 2 + 1
             resize = spec.size(1)
