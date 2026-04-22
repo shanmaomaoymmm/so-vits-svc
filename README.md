@@ -302,17 +302,28 @@ python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu
 **CPU 模式推荐配置**:
 
 ```bash
-# 4核CPU：使用2个进程
-python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 2
+# 4核CPU：使用2-3个进程
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 3
 
-# 8核CPU：使用4个进程（推荐）
+# 6核CPU：使用4-5个进程（推荐）
 python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 4
 
-# 16核及以上：最多使用8个进程
-python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 8
+# 8核CPU：使用6个进程
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 6
+
+# 16核及以上：最多使用12-16个进程（需要大内存）
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 12
 ```
 
-**建议**: CPU 进程数设置为物理核心数的一半，以平衡速度和系统响应性。
+**自动优化**: 代码会自动检测您的 CPU 核心数和内存大小，计算最优进程数并给出建议。
+
+**用户控制权**: 程序不会强制限制进程数，您可以自由设置任何值。但如果超过系统资源承受能力，会显示详细警告。
+
+**内存占用参考**:
+- 不使用 `--use_diff`：每进程约 2-2.5GB
+- 使用 `--use_diff`：每进程约 3-4GB
+
+**建议**: CPU 进程数设置为物理核心数的 75%，以平衡速度和系统响应性。
 
 #### ⚠️ 重要：Intel Arc A770 多进程使用警告
 
@@ -922,17 +933,28 @@ python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu
 **CPU Mode Recommended Configurations**:
 
 ```bash
-# 4-core CPU: use 2 processes
-python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 2
+# 4-core CPU: use 2-3 processes
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 3
 
-# 8-core CPU: use 4 processes (recommended)
+# 6-core CPU: use 4-5 processes (recommended)
 python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 4
 
-# 16+ cores: use maximum 8 processes
-python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 8
+# 8-core CPU: use 6 processes
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 6
+
+# 16+ cores: use up to 12-16 processes (requires large memory)
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 12
 ```
 
-**Recommendation**: Set CPU process count to half of your physical cores to balance speed and system responsiveness.
+**Automatic Optimization**: Code automatically detects your CPU cores and memory size to calculate optimal process count and provides recommendations.
+
+**User Control**: The program does NOT enforce limits. You can set any value you want. If it exceeds system capacity, detailed warnings will be displayed.
+
+**Memory Usage Reference**:
+- Without `--use_diff`: ~2-2.5GB per process
+- With `--use_diff`: ~3-4GB per process
+
+**Recommendation**: Set CPU process count to 75% of physical cores to balance speed and system responsiveness.
 
 #### ⚠️ Important: Intel Arc A770 Multiprocessing Warning
 

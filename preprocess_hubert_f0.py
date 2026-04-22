@@ -234,7 +234,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--num_processes', type=int, default=1, 
-        help='Number of parallel processes. For Intel Arc A770: 1-2 recommended (max 4). For other CPUs: up to CPU cores. Higher values risk system freeze!'
+        help='Number of parallel processes. For Intel Arc A770: 1-2 recommended (max 4). For other CPUs: up to CPU cores.'
     )
     args = parser.parse_args()
     f0p = args.f0_predictor
@@ -304,23 +304,92 @@ if __name__ == "__main__":
     if num_processes == 0:
         num_processes = os.cpu_count()
     
-    # 安全检查：根据硬件类型限制最大进程数
-    max_processes = 8  # 默认最大值（CPU 模式）
-    if torch.xpu.is_available() and device.type != "cpu":
-        # 仅在 XPU 模式下应用更严格的限制
+    # 资源分析和建议（不强制限制）
+    if device.type == "cpu":
+        # CPU 模式：根据物理核心数和内存提供建议
         try:
-            xpu_device_name = torch.xpu.get_device_name(0)
-            if "A770" in xpu_device_name:
-                max_processes = 4  # Arc A770 更严格的限制
-                if num_processes > max_processes:
-                    logger.warning(f"Arc A770 detected: limiting processes from {num_processes} to {max_processes}")
-                    num_processes = max_processes
-        except:
-            pass
+            import psutil
+            physical_cores = psutil.cpu_count(logical=False) or os.cpu_count()
+            total_memory_gb = psutil.virtual_memory().total / (1024**3)
+            
+            # 计算建议的进程数
+            # 1. 不超过物理核心数的 75%（保留资源给系统和I/O）
+            core_based_limit = max(1, int(physical_cores * 0.75))
+            # 2. 每进程预留 3GB 内存（Hubert + Vocoder + 缓存）
+            #    如果不使用 --use_diff，可以改为 2.5GB
+            memory_per_process = 3.0 if diff else 2.5
+            memory_based_limit = max(1, int(total_memory_gb / memory_per_process))
+            # 3. 绝对上限（防止极端情况）
+            absolute_max = 16
+            
+            recommended_max = min(core_based_limit, memory_based_limit, absolute_max)
+            
+            logger.info(f"CPU mode resource analysis:")
+            logger.info(f"  Physical cores: {physical_cores}")
+            logger.info(f"  Total memory: {total_memory_gb:.1f} GB")
+            logger.info(f"  Core-based limit (75%): {core_based_limit}")
+            logger.info(f"  Memory-based limit ({memory_per_process}GB/process): {memory_based_limit}")
+            logger.info(f"  Recommended max processes: {recommended_max}")
+            
+            # 如果用户设置的进程数超过建议值，给出警告但不强制限制
+            if num_processes > recommended_max:
+                logger.warning("="*70)
+                logger.warning(f"WARNING: Requested {num_processes} processes exceeds recommended limit of {recommended_max}")
+                logger.warning("")
+                logger.warning("Potential risks:")
+                if num_processes > core_based_limit:
+                    logger.warning(f"  - Exceeds CPU capacity ({core_based_limit} based on {physical_cores} cores)")
+                    logger.warning("  - May cause excessive context switching")
+                if num_processes > memory_based_limit:
+                    logger.warning(f"  - Exceeds memory capacity ({memory_based_limit} based on {total_memory_gb:.1f}GB)")
+                    logger.warning("  - May cause memory swapping and severe performance degradation")
+                logger.warning("")
+                logger.warning("Recommendations:")
+                logger.warning(f"  - Reduce to {recommended_max} processes for optimal performance")
+                logger.warning("  - Monitor system resources during execution")
+                logger.warning("  - If system becomes unresponsive, reduce process count")
+                logger.warning("="*70)
+            else:
+                logger.info(f"Process count {num_processes} is within safe limits")
+                
+        except ImportError:
+            # 如果没有 psutil，使用保守估计
+            logger.warning("psutil not installed, cannot analyze system resources")
+            logger.warning("For better optimization, install with: pip install psutil")
+            physical_cores = os.cpu_count() or 8
+            conservative_estimate = min(max(1, physical_cores // 2), 8)
+            logger.info(f"Using conservative estimate: {conservative_estimate} processes recommended (based on {physical_cores} logical cores)")
+            
+            if num_processes > conservative_estimate:
+                logger.warning(f"Requested {num_processes} processes may be too high for your system")
+                logger.warning(f"Consider reducing to {conservative_estimate} or fewer processes")
+        except Exception as e:
+            logger.warning(f"Could not analyze system resources: {e}")
+            logger.info(f"Proceeding with user-specified {num_processes} processes")
+    else:
+        # XPU 模式：提供建议但不强制
+        if torch.xpu.is_available():
+            try:
+                xpu_device_name = torch.xpu.get_device_name(0)
+                if "A770" in xpu_device_name:
+                    logger.warning("="*70)
+                    logger.warning("Intel Arc A770 detected!")
+                    logger.warning("According to Intel official documentation, A770 has known issues")
+                    logger.warning("with multiprocessing that may cause system hangs.")
+                    logger.warning("")
+                    logger.warning("Strong recommendations:")
+                    logger.warning("  - Use --num_processes=1 for maximum stability")
+                    logger.warning("  - If you must use multiprocessing, limit to 2-4 processes max")
+                    logger.warning("  - Monitor system temperature and memory usage closely")
+                    logger.warning("  - Or use --device cpu to avoid XPU issues entirely")
+                    logger.warning("")
+                    if num_processes > 4:
+                        logger.error(f"WARNING: You set --num_processes={num_processes}")
+                        logger.error("This is VERY HIGH for Arc A770 and has high risk of system freeze!")
+                        logger.error("Strongly recommend reducing to 1-4 processes.")
+                    logger.warning("="*70)
+            except Exception as e:
+                logger.warning(f"Could not detect XPU device name: {e}")
     
-    if num_processes > max_processes:
-        logger.warning(f"Process count {num_processes} exceeds safe limit ({max_processes})! Limiting to prevent system freeze.")
-        num_processes = max_processes
-    
-    logger.info(f"Starting preprocessing with {num_processes} processes (max allowed: {max_processes})")
+    logger.info(f"Starting preprocessing with {num_processes} processes")
     parallel_process(filenames, num_processes, f0p, args.use_diff, dconfig, device)
