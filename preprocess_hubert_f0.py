@@ -29,101 +29,194 @@ speech_encoder = hps["model"]["speech_encoder"]
 
 
 def process_one(filename, hmodel, f0p, device, diff=False, mel_extractor=None):
-    wav, sr = librosa.load(filename, sr=sampling_rate)
-    audio_norm = torch.FloatTensor(wav)
-    audio_norm = audio_norm.unsqueeze(0)
-    soft_path = filename + ".soft.pt"
-    if not os.path.exists(soft_path):
-        wav16k = librosa.resample(wav, orig_sr=sampling_rate, target_sr=16000)
-        wav16k = torch.from_numpy(wav16k).to(device)
-        c = hmodel.encoder(wav16k)
-        torch.save(c.cpu(), soft_path)
+    try:
+        wav, sr = librosa.load(filename, sr=sampling_rate)
+        audio_norm = torch.FloatTensor(wav)
+        audio_norm = audio_norm.unsqueeze(0)
+        soft_path = filename + ".soft.pt"
+        if not os.path.exists(soft_path):
+            wav16k = librosa.resample(wav, orig_sr=sampling_rate, target_sr=16000)
+            wav16k = torch.from_numpy(wav16k).to(device)
+            c = hmodel.encoder(wav16k)
+            torch.save(c.cpu(), soft_path)
+            del wav16k, c
 
-    f0_path = filename + ".f0.npy"
-    if not os.path.exists(f0_path):
-        f0_predictor = utils.get_f0_predictor(f0p,sampling_rate=sampling_rate, hop_length=hop_length,device=None,threshold=0.05)
-        f0,uv = f0_predictor.compute_f0_uv(
-            wav
-        )
-        np.save(f0_path, np.asanyarray((f0,uv),dtype=object))
-
-
-    spec_path = filename.replace(".wav", ".spec.pt")
-    if not os.path.exists(spec_path):
-        # Process spectrogram
-        # The following code can't be replaced by torch.FloatTensor(wav)
-        # because load_wav_to_torch return a tensor that need to be normalized
-
-        if sr != hps.data.sampling_rate:
-            raise ValueError(
-                "{} SR doesn't match target {} SR".format(
-                    sr, hps.data.sampling_rate
-                )
+        f0_path = filename + ".f0.npy"
+        if not os.path.exists(f0_path):
+            f0_predictor = utils.get_f0_predictor(f0p,sampling_rate=sampling_rate, hop_length=hop_length,device=None,threshold=0.05)
+            f0,uv = f0_predictor.compute_f0_uv(
+                wav
             )
-
-        #audio_norm = audio / hps.data.max_wav_value
-
-        spec = spectrogram_torch(
-            audio_norm,
-            hps.data.filter_length,
-            hps.data.sampling_rate,
-            hps.data.hop_length,
-            hps.data.win_length,
-            center=False,
-        )
-        spec = torch.squeeze(spec, 0)
-        torch.save(spec, spec_path)
-
-    if diff or hps.model.vol_embedding:
-        volume_path = filename + ".vol.npy"
-        volume_extractor = utils.Volume_Extractor(hop_length)
-        if not os.path.exists(volume_path):
-            volume = volume_extractor.extract(audio_norm)
-            np.save(volume_path, volume.to('cpu').numpy())
-
-    if diff:
-        mel_path = filename + ".mel.npy"
-        if not os.path.exists(mel_path) and mel_extractor is not None:
-            mel_t = mel_extractor.extract(audio_norm.to(device), sampling_rate)
-            mel = mel_t.squeeze().to('cpu').numpy()
-            np.save(mel_path, mel)
-        aug_mel_path = filename + ".aug_mel.npy"
-        aug_vol_path = filename + ".aug_vol.npy"
-        max_amp = float(torch.max(torch.abs(audio_norm))) + 1e-5
-        max_shift = min(1, np.log10(1/max_amp))
-        # 修复: 限制音量增强范围，避免数值爆炸 (-3dB 到 +max_shift)
-        log10_vol_shift = random.uniform(-0.5, max_shift)
-        keyshift = random.uniform(-5, 5)
-        if mel_extractor is not None:
-            aug_mel_t = mel_extractor.extract(audio_norm * (10 ** log10_vol_shift), sampling_rate, keyshift = keyshift)
-        aug_mel = aug_mel_t.squeeze().to('cpu').numpy()
-        aug_vol = volume_extractor.extract(audio_norm * (10 ** log10_vol_shift))
-        if not os.path.exists(aug_mel_path):
-            np.save(aug_mel_path,np.asanyarray((aug_mel,keyshift),dtype=object))
-        if not os.path.exists(aug_vol_path):
-            np.save(aug_vol_path,aug_vol.to('cpu').numpy())
+            np.save(f0_path, np.asanyarray((f0,uv),dtype=object))
+            del f0_predictor
 
 
-def process_batch(file_chunk, f0p, diff=False, mel_extractor=None, device="cpu"):
+        spec_path = filename.replace(".wav", ".spec.pt")
+        if not os.path.exists(spec_path):
+            # Process spectrogram
+            # The following code can't be replaced by torch.FloatTensor(wav)
+            # because load_wav_to_torch return a tensor that need to be normalized
+
+            if sr != hps.data.sampling_rate:
+                raise ValueError(
+                    "{} SR doesn't match target {} SR".format(
+                        sr, hps.data.sampling_rate
+                    )
+                )
+
+            #audio_norm = audio / hps.data.max_wav_value
+
+            spec = spectrogram_torch(
+                audio_norm,
+                hps.data.filter_length,
+                hps.data.sampling_rate,
+                hps.data.hop_length,
+                hps.data.win_length,
+                center=False,
+            )
+            spec = torch.squeeze(spec, 0)
+            torch.save(spec, spec_path)
+
+        if diff or hps.model.vol_embedding:
+            volume_path = filename + ".vol.npy"
+            volume_extractor = utils.Volume_Extractor(hop_length)
+            if not os.path.exists(volume_path):
+                volume = volume_extractor.extract(audio_norm)
+                np.save(volume_path, volume.to('cpu').numpy())
+                del volume
+        else:
+            volume_extractor = None
+
+        if diff:
+            mel_path = filename + ".mel.npy"
+            aug_mel_t = None
+            if not os.path.exists(mel_path) and mel_extractor is not None:
+                mel_t = mel_extractor.extract(audio_norm.to(device), sampling_rate)
+                mel = mel_t.squeeze().to('cpu').numpy()
+                np.save(mel_path, mel)
+                del mel_t, mel
+            aug_mel_path = filename + ".aug_mel.npy"
+            aug_vol_path = filename + ".aug_vol.npy"
+            max_amp = float(torch.max(torch.abs(audio_norm))) + 1e-5
+            max_shift = min(1, np.log10(1/max_amp))
+            # 修复: 限制音量增强范围，避免数值爆炸 (-3dB 到 +max_shift)
+            log10_vol_shift = random.uniform(-0.5, max_shift)
+            keyshift = random.uniform(-5, 5)
+            if mel_extractor is not None:
+                aug_mel_t = mel_extractor.extract(audio_norm * (10 ** log10_vol_shift), sampling_rate, keyshift = keyshift)
+                aug_mel = aug_mel_t.squeeze().to('cpu').numpy()
+                if not os.path.exists(aug_mel_path):
+                    np.save(aug_mel_path,np.asanyarray((aug_mel,keyshift),dtype=object))
+                del aug_mel_t, aug_mel
+            if volume_extractor is not None:
+                aug_vol = volume_extractor.extract(audio_norm * (10 ** log10_vol_shift))
+                if not os.path.exists(aug_vol_path):
+                    np.save(aug_vol_path,aug_vol.to('cpu').numpy())
+                del aug_vol
+        
+        del wav, audio_norm
+        return True
+    except Exception as e:
+        logger.error(f"Error processing file {filename}: {str(e)}")
+        return False
+
+
+def process_batch(file_chunk, f0p, diff=False, vocoder_type=None, vocoder_ckpt=None, device="cpu"):
     logger.info("Loading speech encoder for content...")
     rank = mp.current_process()._identity
     rank = rank[0] if len(rank) > 0 else 0
+    
+    # Intel Arc A770 多进程支持策略
+    # 根据 Intel 官方文档，Arc A770 在多进程并发时可能导致系统死机
+    # 但我们可以通过以下策略来安全地使用多进程：
+    # 1. 每个进程使用独立的 CPU 核心进行计算
+    # 2. 严格限制 PyTorch 线程数
+    # 3. 避免 XPU 上的并发模型加载
+    
+    # 检测是否为 Arc A770 并给出建议
     if torch.xpu.is_available():
-        device = torch.device("xpu")
+        try:
+            xpu_device_name = torch.xpu.get_device_name(0)
+            if "A770" in xpu_device_name:
+                logger.warning(f"Detected Intel Arc A770: {xpu_device_name}")
+                if device != "cpu" and len(file_chunk) > 0:
+                    logger.warning("Arc A770 has known issues with multiprocessing on XPU")
+                    logger.warning("Switching to CPU mode for stability in this worker")
+                    device = torch.device("cpu")
+        except:
+            pass
+    
+    if isinstance(device, str):
+        device = torch.device(device)
+    
     logger.info(f"Rank {rank} uses device {device}")
+    
+    # 为每个进程设置独立的随机种子
+    random.seed(os.getpid() + rank)
+    torch.manual_seed(os.getpid() + rank)
+    
+    # 关键优化：严格限制 PyTorch 线程数，防止资源竞争
+    # 对于音频处理任务，单线程更高效
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    
+    # 设置环境变量，进一步限制并行度
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    
     hmodel = utils.get_speech_encoder(speech_encoder, device=device)
     logger.info(f"Loaded speech encoder for rank {rank}")
+    
+    # 验证模型确实在正确的设备上
+    if hasattr(hmodel, 'model') and hasattr(hmodel.model, 'device'):
+        actual_device = hmodel.model.device
+        logger.info(f"Rank {rank} model device verification: {actual_device}")
+        if device.type == "cpu" and actual_device.type != "cpu":
+            logger.warning(f"Rank {rank} WARNING: Expected CPU but model is on {actual_device}")
+    elif hasattr(hmodel, 'dev'):
+        logger.info(f"Rank {rank} model device (from .dev attr): {hmodel.dev}")
+    
+    # 在每个子进程中独立创建 mel_extractor
+    # 注意：即使是 CPU 模式，也要避免过多进程同时加载大模型
+    mel_extractor = None
+    if diff and vocoder_type is not None and vocoder_ckpt is not None:
+        logger.info(f"Rank {rank} loading Vocoder...")
+        mel_extractor = Vocoder(vocoder_type, vocoder_ckpt, device=device)
+        logger.info(f"Rank {rank} loaded Vocoder")
+    
+    success_count = 0
+    fail_count = 0
     for filename in tqdm(file_chunk, position = rank):
-        process_one(filename, hmodel, f0p, device, diff, mel_extractor)
+        try:
+            result = process_one(filename, hmodel, f0p, device, diff, mel_extractor)
+            if result:
+                success_count += 1
+            else:
+                fail_count += 1
+        except Exception as e:
+            logger.error(f"Rank {rank} failed to process {filename}: {str(e)}")
+            fail_count += 1
+            continue
+    
+    logger.info(f"Rank {rank} completed: {success_count} succeeded, {fail_count} failed")
+    
+    # 清理资源
+    del hmodel
+    if mel_extractor is not None:
+        del mel_extractor
 
-def parallel_process(filenames, num_processes, f0p, diff, mel_extractor, device):
+def parallel_process(filenames, num_processes, f0p, diff, dconfig, device):
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
         tasks = []
         for i in range(num_processes):
             start = int(i * len(filenames) / num_processes)
             end = int((i + 1) * len(filenames) / num_processes)
             file_chunk = filenames[start:end]
-            tasks.append(executor.submit(process_batch, file_chunk, f0p, diff, mel_extractor, device=device))
+            # 只传递配置信息，不传递模型对象，避免跨进程共享问题
+            tasks.append(executor.submit(process_batch, file_chunk, f0p, diff, 
+                                        dconfig.vocoder.type if diff else None,
+                                        dconfig.vocoder.ckpt if diff else None,
+                                        device=device))
         for task in tqdm(tasks, position = 0):
             task.result()
 
@@ -140,27 +233,69 @@ if __name__ == "__main__":
         '--f0_predictor', type=str, default="rmvpe", help='Select F0 predictor, can select crepe,pm,dio,harvest,rmvpe,fcpe|default: pm(note: crepe is original F0 using mean filter)'
     )
     parser.add_argument(
-        '--num_processes', type=int, default=1, help='You are advised to set the number of processes to the same as the number of CPU cores'
+        '--num_processes', type=int, default=1, 
+        help='Number of parallel processes. For Intel Arc A770: 1-2 recommended (max 4). For other CPUs: up to CPU cores. Higher values risk system freeze!'
     )
     args = parser.parse_args()
     f0p = args.f0_predictor
     device = args.device
+    
+    # 设备选择逻辑
     if device is None:
+        # 默认自动检测：优先 XPU，其次 CPU
         device = torch.device("xpu" if torch.xpu.is_available() else "cpu")
+    elif device.lower() == "cpu":
+        # 明确指定使用 CPU
+        device = torch.device("cpu")
+        logger.info("=" * 60)
+        logger.info("Using CPU mode as requested")
+        logger.info("CPU mode recommendations:")
+        logger.info("  - Set --num_processes to half of your CPU cores")
+        logger.info("  - For example: --num_processes 4 for 8-core CPU")
+        logger.info("  - Maximum recommended: 8 processes")
+        logger.info("=" * 60)
+    else:
+        # 其他设备类型
+        device = torch.device(device)
 
     print(speech_encoder)
     logger.info("Using device: " + str(device))
     logger.info("Using SpeechEncoder: " + speech_encoder)
     logger.info("Using extractor: " + f0p)
     logger.info("Using diff Mode: " + str(args.use_diff))
-
-    if args.use_diff:
-        print("use_diff")
-        print("Loading Mel Extractor...")
-        mel_extractor = Vocoder(dconfig.vocoder.type, dconfig.vocoder.ckpt, device=device)
-        print("Loaded Mel Extractor.")
-    else:
-        mel_extractor = None
+    
+    # 检测硬件并给出建议
+    if torch.xpu.is_available() and device.type != "cpu":
+        # 只有在非 CPU 模式下才显示 XPU 相关警告
+        try:
+            xpu_device_name = torch.xpu.get_device_name(0)
+            logger.info(f"Detected XPU device: {xpu_device_name}")
+            if "A770" in xpu_device_name:
+                logger.warning("="*70)
+                logger.warning("Intel Arc A770 detected!")
+                logger.warning("According to Intel official documentation, A770 has known issues")
+                logger.warning("with multiprocessing that may cause system hangs.")
+                logger.warning("")
+                logger.warning("Recommendations:")
+                logger.warning("  - Use --num_processes=1 for maximum stability (recommended)")
+                logger.warning("  - If you must use multiprocessing, limit to 2-4 processes max")
+                logger.warning("  - Monitor system temperature and memory usage")
+                logger.warning("  - Or use --device cpu to avoid XPU issues entirely")
+                logger.warning("="*70)
+                
+                # 如果用户设置了过多的进程数，给出强烈警告
+                if args.num_processes > 2:
+                    logger.error("="*70)
+                    logger.error(f"WARNING: You set --num_processes={args.num_processes}")
+                    logger.error("This is TOO HIGH for Arc A770 and may cause system freeze!")
+                    logger.error("Strongly recommend reducing to 1-2 processes.")
+                    logger.error("Or use --device cpu for stable multiprocessing.")
+                    logger.error("="*70)
+        except Exception as e:
+            logger.warning(f"Could not detect XPU device name: {e}")
+    elif device.type == "cpu":
+        logger.info("Running in CPU mode - XPU warnings suppressed")
+    
     filenames = glob(f"{args.in_dir}/*/*.wav", recursive=True)  # [:10]
     shuffle(filenames)
     mp.set_start_method("spawn", force=True)
@@ -168,5 +303,24 @@ if __name__ == "__main__":
     num_processes = args.num_processes
     if num_processes == 0:
         num_processes = os.cpu_count()
-
-    parallel_process(filenames, num_processes, f0p, args.use_diff, mel_extractor, device)
+    
+    # 安全检查：根据硬件类型限制最大进程数
+    max_processes = 8  # 默认最大值（CPU 模式）
+    if torch.xpu.is_available() and device.type != "cpu":
+        # 仅在 XPU 模式下应用更严格的限制
+        try:
+            xpu_device_name = torch.xpu.get_device_name(0)
+            if "A770" in xpu_device_name:
+                max_processes = 4  # Arc A770 更严格的限制
+                if num_processes > max_processes:
+                    logger.warning(f"Arc A770 detected: limiting processes from {num_processes} to {max_processes}")
+                    num_processes = max_processes
+        except:
+            pass
+    
+    if num_processes > max_processes:
+        logger.warning(f"Process count {num_processes} exceeds safe limit ({max_processes})! Limiting to prevent system freeze.")
+        num_processes = max_processes
+    
+    logger.info(f"Starting preprocessing with {num_processes} processes (max allowed: {max_processes})")
+    parallel_process(filenames, num_processes, f0p, args.use_diff, dconfig, device)

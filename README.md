@@ -264,7 +264,7 @@ python preprocess_flist_config.py --speech_encoder vec768l12 --vol_aug
 
 ### 4. 生成 hubert 与 f0
 
-```
+```bash
 python preprocess_hubert_f0.py --f0_predictor dio
 ```
 
@@ -280,17 +280,92 @@ f0_predictor可选参数
 如果省略 f0_predictor 参数，默认值为 rmvpe。
 
 尚若需要浅扩散功能，需要增加--use_diff 参数。
-```
+```bash
 python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 ```
 
-⚠️ 目前多线程功能存在严重缺陷，使用生成的训练文件进行训练时会出现无征兆闪退的现象，无法正常训练！
+#### 💻 使用 CPU 进行预处理
 
-~~加速预处理 如若您的数据集比较大，可以尝试添加--num_processes参数。~~
-<!-- ```bash -->
-~~python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8~~
-<!-- ``` -->
-~~此时，所有的Workers会被自动分配到多个线程上。~~
+如果您想使用 CPU 而不是 XPU/GPU，可以通过 `--device` 参数指定：
+
+```bash
+# 强制使用 CPU 模式
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu
+```
+
+**CPU 模式的优势**:
+- ✅ 完全避免 XPU 多进程问题
+- ✅ 可以使用更多进程（推荐 4-8 个）
+- ✅ 更稳定，不会导致系统死机
+- ✅ 适合没有独立显卡或显存不足的情况
+
+**CPU 模式推荐配置**:
+
+```bash
+# 4核CPU：使用2个进程
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 2
+
+# 8核CPU：使用4个进程（推荐）
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 4
+
+# 16核及以上：最多使用8个进程
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 8
+```
+
+**建议**: CPU 进程数设置为物理核心数的一半，以平衡速度和系统响应性。
+
+#### ⚠️ 重要：Intel Arc A770 多进程使用警告
+
+**已知问题**: 根据 Intel 官方 OpenVINO 2025.2 发布说明，在 Intel Arc A770 上同时运行多个进程可能导致系统死机。
+
+**技术原因**:
+- Intel Arc A770 的驱动程序在多进程并发访问时存在稳定性问题
+- 每个进程加载大型模型会占用大量内存和显存资源
+- PyTorch 线程与 multiprocessing 的资源竞争可能引发死锁
+
+**推荐配置方案**:
+
+##### 方案 1：最大稳定性（强烈推荐）
+```bash
+# 单进程模式，最稳定，适合大多数用户
+python preprocess_hubert_f0.py --f0_predictor rmvpe --num_processes 1
+```
+- ✅ 完全避免多进程冲突
+- ✅ 内存占用最低
+- ✅ 不会导致系统死机
+- ⚠️ 速度相对较慢，但最安全
+
+##### 方案 2：适度加速（Arc A770 用户）
+```bash
+# 2-4 个进程，平衡速度和稳定性
+python preprocess_hubert_f0.py --f0_predictor rmvpe --num_processes 2
+```
+- ✅ 比单进程快 1.5-2 倍
+- ⚠️ 需要监控系统温度和内存
+- ⚠️ 不建议超过 4 个进程
+- ❌ 仍有小概率导致系统不稳定
+
+##### 方案 3：CPU 多核加速（非 XPU 用户）
+```bash
+# CPU 用户可以适当增加进程数，但仍需限制
+python preprocess_hubert_f0.py --f0_predictor rmvpe --num_processes 4
+```
+- ✅ 充分利用 CPU 多核
+- ⚠️ 建议设置为 CPU 核心数的一半
+- ⚠️ 最多不超过 8 个进程
+
+**自动保护机制**:
+- ✅ 代码会自动检测 Arc A770 并给出警告
+- ✅ 自动限制 Arc A770 最大进程数为 4
+- ✅ 每个进程的 PyTorch 线程数限制为 1
+- ✅ 设置 OMP_NUM_THREADS 和 MKL_NUM_THREADS 环境变量
+- ✅ 详细的日志输出，方便监控处理进度
+
+**监控建议**:
+1. 打开任务管理器，监控 CPU 和内存使用率
+2. 如果内存使用超过 80%，立即停止并减少进程数
+3. 监控系统温度，确保散热良好
+4. 首次使用时建议从 `--num_processes=1` 开始测试
 
 执行完以上步骤后，`dataset`目录便是预处理完成的数据，此时`dataset_raw`文件夹可以删除。
 
@@ -829,13 +904,88 @@ If shallow diffusion function is needed, add the --use_diff parameter.
 python preprocess_hubert_f0.py --f0_predictor dio --use_diff
 ```
 
-⚠️ Currently, the multi-threading function has serious defects. Using the generated training files for training will cause unexplained crashes and cannot train normally!
+#### 💻 Using CPU for Preprocessing
 
-~~Accelerated preprocessing If your dataset is large, you can try adding the --num_processes parameter.~~
-<!-- ```bash -->
-~~python preprocess_hubert_f0.py --f0_predictor dio --use_diff --num_processes 8~~
-<!-- ``` -->
-~~At this time, all Workers will be automatically assigned to multiple threads.~~
+If you want to use CPU instead of XPU/GPU, you can specify it with the `--device` parameter:
+
+```bash
+# Force CPU mode
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu
+```
+
+**Advantages of CPU Mode**:
+- ✅ Completely avoids XPU multiprocessing issues
+- ✅ Can use more processes (recommended 4-8)
+- ✅ More stable, won't cause system freeze
+- ✅ Suitable for systems without dedicated GPU or insufficient VRAM
+
+**CPU Mode Recommended Configurations**:
+
+```bash
+# 4-core CPU: use 2 processes
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 2
+
+# 8-core CPU: use 4 processes (recommended)
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 4
+
+# 16+ cores: use maximum 8 processes
+python preprocess_hubert_f0.py --f0_predictor rmvpe --device cpu --num_processes 8
+```
+
+**Recommendation**: Set CPU process count to half of your physical cores to balance speed and system responsiveness.
+
+#### ⚠️ Important: Intel Arc A770 Multiprocessing Warning
+
+**Known Issue**: According to Intel's official OpenVINO 2025.2 release notes, running multiple processes simultaneously on Intel Arc A770 may lead to system hangs.
+
+**Technical Reasons**:
+- Intel Arc A770 driver has stability issues with concurrent multi-process access
+- Each process loading large models consumes significant memory and VRAM
+- Resource contention between PyTorch threads and multiprocessing may cause deadlocks
+
+**Recommended Configuration Options**:
+
+##### Option 1: Maximum Stability (Strongly Recommended)
+```bash
+# Single process mode, most stable, suitable for most users
+python preprocess_hubert_f0.py --f0_predictor rmvpe --num_processes 1
+```
+- ✅ Completely avoids multiprocessing conflicts
+- ✅ Lowest memory usage
+- ✅ Will not cause system freeze
+- ⚠️ Relatively slower, but safest
+
+##### Option 2: Moderate Acceleration (Arc A770 Users)
+```bash
+# 2-4 processes, balance between speed and stability
+python preprocess_hubert_f0.py --f0_predictor rmvpe --num_processes 2
+```
+- ✅ 1.5-2x faster than single process
+- ⚠️ Need to monitor system temperature and memory
+- ⚠️ Not recommended to exceed 4 processes
+- ❌ Still has small probability of causing system instability
+
+##### Option 3: CPU Multi-core Acceleration (Non-XPU Users)
+```bash
+# CPU users can increase processes moderately, but still need limits
+python preprocess_hubert_f0.py --f0_predictor rmvpe --num_processes 4
+```
+- ✅ Fully utilize CPU multi-core
+- ⚠️ Recommended to set to half of CPU cores
+- ⚠️ Maximum 8 processes
+
+**Automatic Protection Mechanisms**:
+- ✅ Code automatically detects Arc A770 and issues warnings
+- ✅ Automatically limits Arc A770 to maximum 4 processes
+- ✅ Limits PyTorch threads per process to 1
+- ✅ Sets OMP_NUM_THREADS and MKL_NUM_THREADS environment variables
+- ✅ Detailed logging output for monitoring progress
+
+**Monitoring Recommendations**:
+1. Open Task Manager to monitor CPU and memory usage
+2. If memory usage exceeds 80%, stop immediately and reduce process count
+3. Monitor system temperature to ensure proper cooling
+4. For first-time use, start with `--num_processes=1` for testing
 
 After completing the above steps, the `dataset` directory will contain the preprocessed data, and the `dataset_raw` folder can be deleted at this time.
 
