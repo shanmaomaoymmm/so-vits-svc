@@ -214,7 +214,7 @@ python resample.py --skip_loudnorm
 
 ### 3. 自动划分训练集、验证集，以及自动生成配置文件
 
-```
+```bash
 python preprocess_flist_config.py --speech_encoder vec768l12
 ```
 
