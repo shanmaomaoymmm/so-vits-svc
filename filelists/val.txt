@@ -1,4 +1,11 @@
-./dataset/44k/nyaru/000003.wav
-./dataset/44k/nyaru/000007.wav
-./dataset/44k/taffy/000558.wav
-./dataset/44k/taffy/000556.wav
+./dataset/44k/huawu/1205891033_1313.wav
+./dataset/44k/huawu/1205891033_1559.wav
+./dataset/44k/huawu/1755625659_571.wav
+./dataset/44k/huawu/1155591443_974.wav
+./dataset/44k/huawu/1755625659_986.wav
+./dataset/44k/huawu/1205891033_946.wav
+./dataset/44k/huawu/1205891033_587.wav
+./dataset/44k/huawu/1155591443_477.wav
+./dataset/44k/huawu/1755625659_695.wav
+./dataset/44k/huawu/1205891033_1205.wav
+./dataset/44k/huawu/1205891033_1009.wav

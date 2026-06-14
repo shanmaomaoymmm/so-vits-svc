@@ -5,10 +5,12 @@ def feature_loss(fmap_r, fmap_g):
   loss = 0
   for dr, dg in zip(fmap_r, fmap_g):
     for rl, gl in zip(dr, dg):
-      # 保持精度一致性，避免在 BF16 下频繁转换导致性能下降
+      # 切断真实分支梯度 + 显式 FP32 精度（避免 BF16 尾数精度损失）
+      rl = rl.float().detach()
+      gl = gl.float()
       loss += torch.mean(torch.abs(rl - gl))
 
-  return loss * 2 
+  return loss * 2
 
 
 def discriminator_loss(disc_real_outputs, disc_generated_outputs):
@@ -16,7 +18,9 @@ def discriminator_loss(disc_real_outputs, disc_generated_outputs):
   r_losses = []
   g_losses = []
   for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
-    # 移除显式的 .float() 转换，让 autocast 自动处理
+    # 显式 FP32 精度，避免 BF16 下 MSE 精度损失
+    dr = dr.float()
+    dg = dg.float()
     r_loss = torch.mean((1-dr)**2)
     g_loss = torch.mean(dg**2)
     loss += (r_loss + g_loss)
@@ -30,7 +34,8 @@ def generator_loss(disc_outputs):
   loss = 0
   gen_losses = []
   for dg in disc_outputs:
-    # 移除显式的 .float() 转换，让 autocast 自动处理
+    # 显式 FP32 精度
+    dg = dg.float()
     l = torch.mean((1-dg)**2)
     gen_losses.append(l)
     loss += l

@@ -29,7 +29,7 @@ import modules.commons as commons
 import utils
 from data_utils import TextAudioCollate, TextAudioSpeakerLoader
 from models import (
-    MultiPeriodDiscriminator,
+    CombinedDiscriminator,
     SynthesizerTrn,
 )
 from modules.losses import discriminator_loss, feature_loss, generator_loss, kl_loss
@@ -61,6 +61,34 @@ def attempt_load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimiz
         return model, optimizer, 0, 0, False
 
 
+def remap_discriminator_checkpoint(checkpoint_path):
+    """
+    将旧 MultiPeriodDiscriminator 检查点映射为 CombinedDiscriminator 格式。
+    旧检查点键名: discriminators.0.convs...
+    CombinedDiscriminator 期望: mpd.discriminators.0.convs...
+    """
+    import tempfile
+    checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
+    saved_state_dict = checkpoint_dict['model']
+    
+    # 检查是否已有 mpd. 前缀（新格式），没有则需要添加
+    if not any(k.startswith('mpd.') for k in saved_state_dict.keys()):
+        print("  [REMAP] Adding 'mpd.' prefix to old discriminator checkpoint keys...")
+        new_state_dict = {}
+        for k, v in saved_state_dict.items():
+            new_state_dict[f'mpd.{k}'] = v
+        checkpoint_dict['model'] = new_state_dict
+        
+        # 写入临时文件供 load_checkpoint 使用
+        tmp = tempfile.NamedTemporaryFile(suffix='.pth', delete=False)
+        torch.save(checkpoint_dict, tmp.name)
+        tmp.close()
+        print(f"  [REMAP] Remapped checkpoint saved to temp file")
+        return tmp.name
+    
+    return checkpoint_path
+
+
 def safe_load_latest_checkpoint(model_dir, model_name_pattern, model, optimizer=None, skip_optimizer=False):
     """
     安全地加载最新的可用检查点，如果最新检查点损坏则尝试次新的检查点
@@ -77,9 +105,19 @@ def safe_load_latest_checkpoint(model_dir, model_name_pattern, model, optimizer=
     checkpoint_paths.sort(key=lambda f: int(
         "".join(filter(str.isdigit, f))), reverse=True)
 
+    # 判别器检查点需要键名映射（旧 MPD → 新 CombinedDiscriminator）
+    is_discriminator = 'D_' in model_name_pattern
+    
     for idx, checkpoint_path in enumerate(checkpoint_paths):
+        load_path = checkpoint_path
+        if is_discriminator:
+            try:
+                load_path = remap_discriminator_checkpoint(checkpoint_path)
+            except Exception as e:
+                print(f"  [REMAP] Failed to remap checkpoint: {e}")
+        
         model, optimizer, learning_rate, epoch_str, success = attempt_load_checkpoint(
-            checkpoint_path, model, optimizer, skip_optimizer
+            load_path, model, optimizer, skip_optimizer
         )
 
         if success:
@@ -223,7 +261,7 @@ def run(rank, n_gpus, hps, device_type):
         hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
         **hps.model).to(device)
-    net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).to(device)
+    net_d = CombinedDiscriminator(hps.model.use_spectral_norm).to(device)
     
     # XPU 优化：fused optimizer 在 BF16 下可能有 FP64 兼容性问题
     # 暂时禁用 fused，等待 PyTorch XPU 更新
@@ -249,14 +287,18 @@ def run(rank, n_gpus, hps, device_type):
     # 如果是单GPU，直接使用原始模型
 
     skip_optimizer = False
+    skip_optimizer_d = True  # 判别器始终跳过优化器（MSD 参数不匹配）
 
     # 使用安全加载函数替代原有的加载逻辑
     try:
         net_g, optim_g, learning_rate_g, epoch_str, global_step_g = safe_load_latest_checkpoint(
             hps.model_dir, "G_*.pth", net_g, optim_g, skip_optimizer
         )
+        # 判别器使用 skip_optimizer=True：
+        # CombinedDiscriminator = MPD(旧) + MSD(新)，旧优化器状态缺少 MSD 参数
+        # MPD 权重从检查点加载，MSD 随机初始化，优化器从头开始
         net_d, optim_d, learning_rate_d, epoch_str_d, global_step_d = safe_load_latest_checkpoint(
-            hps.model_dir, "D_*.pth", net_d, optim_d, skip_optimizer
+            hps.model_dir, "D_*.pth", net_d, optim_d, skip_optimizer_d
         )
 
         # 确保两个模型的epoch_str和global_step一致
@@ -290,8 +332,10 @@ def run(rank, n_gpus, hps, device_type):
     scheduler_last_epoch = epoch_str - 2 if epoch_str > 1 else -1
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optim_g, gamma=hps.train.lr_decay, last_epoch=scheduler_last_epoch)
+    # 判别器优化器被跳过（skip_optimizer_d=True），此时从 -1 开始
+    scheduler_last_epoch_d = scheduler_last_epoch if not skip_optimizer_d else -1
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-        optim_d, gamma=hps.train.lr_decay, last_epoch=scheduler_last_epoch)
+        optim_d, gamma=hps.train.lr_decay, last_epoch=scheduler_last_epoch_d)
 
     if rank == 0:
         print(f"[DEBUG] Schedulers created")
@@ -445,6 +489,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                     y_d_hat_r, y_d_hat_g)
                 loss_disc_all = loss_disc / grad_accumulation_steps
 
+        # 修复：zero_grad 必须在 backward 之前，清理上一轮 G 步残留的判别器梯度
+        # 原位置在 optim_d.step() 之后导致残留 G 梯度污染本轮 D 梯度
+        if (batch_idx) % grad_accumulation_steps == 0:
+            optim_d.zero_grad()
+
         # Discriminator backward (梯度累积)
         if use_grad_scaler:
             scaler.scale(loss_disc_all).backward()
@@ -475,7 +524,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                 # 再进行实际的梯度裁剪
                 grad_norm_d = torch.nn.utils.clip_grad_norm_(net_d.parameters(), grad_clip_value_d)
                 optim_d.step()
-            optim_d.zero_grad()
 
         # Generator
         y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)

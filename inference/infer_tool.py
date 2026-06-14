@@ -226,7 +226,7 @@ class Svc(object):
         f0 = f0.unsqueeze(0)
         uv = uv.unsqueeze(0)
 
-        wav = torch.from_numpy(wav).to(self.dev)
+        wav = torch.from_numpy(wav).to(self.dev).float()
         if not hasattr(self,"audio16k_resample_transform"):
             self.audio16k_resample_transform = torchaudio.transforms.Resample(self.target_sample, 16000).to(self.dev)
         wav16k = self.audio16k_resample_transform(wav[None,:])[0]
@@ -277,34 +277,21 @@ class Svc(object):
               second_encoding = False,
               loudness_envelope_adjustment = 1
               ):
-        # torchaudio.set_audio_backend("soundfile")  # 移除不兼容的后端设置
-        # 使用librosa加载音频以避免兼容性问题
-        import librosa
-        import numpy as np
-        wav, sr = librosa.load(raw_path, sr=None)
-        # 确保音频是numpy数组格式并是一维的
-        wav = np.array(wav, dtype=np.float32)
-        
-        # 确保音频是一维数组
-        if hasattr(wav, 'shape') and wav.ndim != 1:
-            if wav.ndim == 2:
-                # 如果是多声道音频，转换为单声道
-                wav = librosa.to_mono(wav.T)
-            else:
-                # 其他情况取第一个维度
-                wav = wav.flatten()
-        
+        # 新版 torchaudio（>=2.0）移除 set_audio_backend 且默认使用 torchcodec
+        # 改用 soundfile 直接加载（soundfile 已 import）
+        # soundfile 返回 [samples, channels]，torchaudio 返回 [channels, samples]
+        wav, sr = soundfile.read(raw_path)
+        # 确保音频是单声道
+        if wav.ndim > 1:
+            wav = np.mean(wav, axis=1)
         # 检查音频长度是否过短（建议至少0.1秒），如果太短则填充
         min_length = int(self.target_sample * 0.1)  # 0.1秒
         if len(wav) < min_length:
             wav = np.pad(wav, (0, min_length - len(wav)), mode='constant')
             print(f"Warning: Audio too short, padded to {min_length / self.target_sample:.2f}s")
-        
-        if not hasattr(self,"audio_resample_transform") or self.audio16k_resample_transform.orig_freq != sr:
+        if not hasattr(self,"audio_resample_transform") or self.audio_resample_transform.orig_freq != sr:
             self.audio_resample_transform = torchaudio.transforms.Resample(sr,self.target_sample)
-        # 使用torch.FloatTensor转换音频数据，重采样，然后转回numpy数组
-        wav_tensor = self.audio_resample_transform(torch.FloatTensor(wav))
-        wav = wav_tensor.numpy()
+        wav = self.audio_resample_transform(torch.from_numpy(wav)).numpy()
         if spk_mix:
             c, f0, uv = self.get_unit_f0(wav, tran, 0, None, f0_filter,f0_predictor,cr_threshold=cr_threshold)
             n_frames = f0.size(1)
@@ -345,6 +332,7 @@ class Svc(object):
                     audio16k = self.audio16k_resample_transform(audio[None,:])[0]
                     c = self.hubert_model.encoder(audio16k)
                     c = utils.repeat_expand_2d(c.squeeze(0), f0.shape[1],self.unit_interpolate_mode)
+                    c = c.unsqueeze(0)  # 恢复 batch 维度，避免维度错乱
                 f0 = f0[:,:,None]
                 c = c.transpose(-1,-2)
                 audio_mel = self.diffusion_model(

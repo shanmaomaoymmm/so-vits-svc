@@ -31,7 +31,7 @@ model:
 spk:
   huawu: 0
 train:
-  amp_dtype: fp32
+  amp_dtype: bf16
   batch_size: 48
   cache_all_data: true
   cache_device: cpu

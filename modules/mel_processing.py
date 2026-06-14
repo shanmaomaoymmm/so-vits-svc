@@ -58,7 +58,11 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
 
     spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window[wnsize_dtype_device],
                       center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=True)
-    spec = torch.view_as_real(spec).to(y_dtype)
+    # 保持 FP32 精度，不转回 BF16
+    # BF16 只有 7 位尾数，STFT 频谱精度损失会导致电子杂音
+    spec = torch.view_as_real(spec)
+    if y_dtype != torch.bfloat16:
+        spec = spec.to(y_dtype)
 
     spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
     return spec

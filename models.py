@@ -7,6 +7,7 @@ from torch.nn.utils import spectral_norm, weight_norm
 import modules.attentions as attentions
 import modules.commons as commons
 import modules.modules as modules
+from modules.msd import MultiScaleDiscriminator
 import utils
 from modules.commons import get_padding
 from utils import f0_to_coarse
@@ -249,6 +250,37 @@ class MultiPeriodDiscriminator(torch.nn.Module):
             fmap_rs.append(fmap_r)
             fmap_gs.append(fmap_g)
 
+        return y_d_rs, y_d_gs, fmap_rs, fmap_gs
+
+
+class CombinedDiscriminator(torch.nn.Module):
+    """
+    组合判别器 = MPD (MultiPeriodDiscriminator) + MSD (MultiScaleDiscriminator)
+
+    标准 HiFi-GAN 使用 MPD + MSD 双判别器架构：
+    - MPD: 将音频按不同周期重塑为 2D，用 2D 卷积判别周期性结构
+    - MSD: 对音频做多尺度下采样，用 1D 卷积判别不同时间尺度的波形纹理
+
+    之前只有 MPD，判别器太弱导致对抗训练在 step 8k 就失效（loss_fm ≈ 0），
+    模型退化为纯 Mel L1 回归，产生电子杂音。
+
+    添加 MSD 后判别器能捕捉多尺度波形特征，恢复有效的对抗训练信号。
+    """
+    def __init__(self, use_spectral_norm=False):
+        super().__init__()
+        self.mpd = MultiPeriodDiscriminator(use_spectral_norm=use_spectral_norm)
+        self.msd = MultiScaleDiscriminator()
+
+    def forward(self, y, y_hat):
+        # MPD 前向
+        y_d_rs_mpd, y_d_gs_mpd, fmap_rs_mpd, fmap_gs_mpd = self.mpd(y, y_hat)
+        # MSD 前向
+        y_d_rs_msd, y_d_gs_msd, fmap_rs_msd, fmap_gs_msd = self.msd(y, y_hat)
+        # 合并两个判别器的输出列表
+        y_d_rs = y_d_rs_mpd + y_d_rs_msd
+        y_d_gs = y_d_gs_mpd + y_d_gs_msd
+        fmap_rs = fmap_rs_mpd + fmap_rs_msd
+        fmap_gs = fmap_gs_mpd + fmap_gs_msd
         return y_d_rs, y_d_gs, fmap_rs, fmap_gs
 
 

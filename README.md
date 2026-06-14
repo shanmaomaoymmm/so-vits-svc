@@ -400,7 +400,11 @@ tensorboard --logdir logs/44k
 
 浅扩散模型训练
 ```
-python train.py -c configs/config.json -m 44k --use_diff
+# 注意：扩散模型需要先用 --use_diff 预处理数据：
+# python preprocess_hubert_f0.py --f0_predictor dio --use_diff
+
+# 然后独立训练扩散模型（不影响 SoVITS 训练）
+python train_diff.py -c configs/diffusion.yaml
 ```
 
 如果出现训练不稳定，经常中断的情况，可以使用`supervisor`进行进程守护训练，防止模型训练中断。  
@@ -1031,7 +1035,11 @@ Training checkpoints will be saved in the `logs/44k` directory, including:
 
 Shallow diffusion model training
 ```
-python train.py -c configs/config.json -m 44k --use_diff
+# Note: First preprocess data with --use_diff:
+# python preprocess_hubert_f0.py --f0_predictor dio --use_diff
+
+# Then train diffusion model separately
+python train_diff.py -c configs/diffusion.yaml
 ```
 
 If training is unstable and frequently interrupted, you can use `supervisor` for process guardian training to prevent model training interruption.  
