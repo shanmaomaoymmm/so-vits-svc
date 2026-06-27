@@ -1,0 +1,9 @@
+{
+    "host": "smtp.126.com",
+    "port": 465,
+    "use_ssl": true,
+    "username": "your_email@126.com",
+    "password": "YOUR_SMTP_AUTH_CODE",
+    "from_addr": "your_email@126.com",
+    "to_addrs": ["recipient1@example.com", "recipient2@example.com"]
+}

@@ -26,9 +26,9 @@
     "keep_ckpts": 12,
     "all_in_mem": true,
     "vol_aug": false,
-    "grad_clip": 5000.0,
-    "grad_clip_d": 5000.0,
-    "grad_clip_g": 10000.0
+    "grad_clip": 30000.0,
+    "grad_clip_d": 30000.0,
+    "grad_clip_g": 30000.0
   },
   "data": {
     "training_files": "filelists/train.txt",

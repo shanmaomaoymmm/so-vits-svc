@@ -327,6 +327,16 @@ def run(rank, n_gpus, hps, device_type):
         print(f"[DEBUG] Checkpoint loaded. epoch_str={epoch_str}, global_step={global_step}")
         print(f"[DEBUG] Creating schedulers...")
 
+    # 从检查点恢复后，强制使用 config 中的 learning_rate
+    # 原逻辑：optimizer.load_state_dict() 恢复了检查点里的 LR → config 的修改不生效
+    if global_step > 0:
+        for param_group in optim_g.param_groups:
+            param_group['lr'] = hps.train.learning_rate
+        for param_group in optim_d.param_groups:
+            param_group['lr'] = hps.train.learning_rate
+        if rank == 0:
+            print(f"[FIX] Overrode optimizer LR from config: {hps.train.learning_rate}")
+
     warmup_epoch = hps.train.warmup_epochs
     # 从头训练时，last_epoch 应该为 -1（PyTorch 默认值）
     scheduler_last_epoch = epoch_str - 2 if epoch_str > 1 else -1
