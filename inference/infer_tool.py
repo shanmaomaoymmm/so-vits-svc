@@ -203,7 +203,6 @@ class Svc(object):
             **self.hps_ms.model)
         _ = utils.load_checkpoint(self.net_g_path, self.net_g_ms, None)
         self.dtype = list(self.net_g_ms.parameters())[0].dtype
-        # 模型加载逻辑 - 仅支持XPU设备
         if "half" in self.net_g_path and torch.xpu.is_available():
             _ = self.net_g_ms.half().eval().to(self.dev)
         else:

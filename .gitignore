@@ -170,3 +170,5 @@ filelists/*
 
 # 邮件配置（含 SMTP 密码，不要提交）
 configs/email_config.json
+
+plans
