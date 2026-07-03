@@ -347,6 +347,38 @@ def run(rank, n_gpus, hps, device_type):
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
         optim_d, gamma=hps.train.lr_decay, last_epoch=scheduler_last_epoch_d)
 
+    # ──────────────────────────────────────────────────────────────
+    # 修复：消除学习率"过山车"效应
+    # line 332-336 将 optimizer LR 覆盖为 config 值是为了确保
+    # scheduler.base_lrs 取到正确的初始值，但副作用是当前 epoch
+    # 将以初始 LR 训练（过高），造成 TensorBoard 上 LR 的跳变。
+    #
+    # 此处根据指数衰减公式计算当前 epoch 应有的 LR 并重新设置，
+    # 使恢复后的第一个 epoch 也能使用正确的衰减值。
+    # ──────────────────────────────────────────────────────────────
+    if global_step > 0 and not skip_optimizer:
+        # 检测用户是否修改了 config 中的 learning_rate
+        # learning_rate_g 来自 checkpoint 元数据（保存时的 config LR）
+        config_lr_changed = abs(hps.train.learning_rate - learning_rate_g) > 1e-12
+        if not config_lr_changed:
+            # config LR 未修改 → 平滑恢复：设置当前 epoch 的正确衰减值
+            # 公式推导：
+            #   scheduler.last_epoch = epoch_str - 2 (line 342)
+            #   下一次 scheduler.step() 会计算：lr = base_lr * gamma^(epoch_str-1)
+            #   这是给 epoch_str+1 用的。当前 epoch (epoch_str) 的 LR 应由
+            #   上一次 step() (在 epoch_str-1 结束时) 设置：
+            #   lr = base_lr * gamma^(epoch_str-2)
+            decay_exponent = max(0, epoch_str - 2)
+            correct_lr = hps.train.learning_rate * (hps.train.lr_decay ** decay_exponent)
+            for param_group in optim_g.param_groups:
+                param_group['lr'] = correct_lr
+            if rank == 0:
+                print(f"[FIX] Corrected LR for epoch {epoch_str}: "
+                      f"{hps.train.learning_rate:.2e} * {hps.train.lr_decay}^{decay_exponent} = {correct_lr:.10f}")
+        elif rank == 0:
+            print(f"[FIX] Config LR changed ({learning_rate_g:.2e} -> {hps.train.learning_rate:.2e}), "
+                  f"using new value directly (no decay correction)")
+
     if rank == 0:
         print(f"[DEBUG] Schedulers created")
         print(f"[DEBUG] Setting up GradScaler...")
