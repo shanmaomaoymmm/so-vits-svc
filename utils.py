@@ -182,7 +182,21 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, skip_optimizer=False
     iteration = checkpoint_dict['iteration']
     learning_rate = checkpoint_dict['learning_rate']
     if optimizer is not None and not skip_optimizer and checkpoint_dict['optimizer'] is not None:
+        # 加载优化器状态（PyTorch load_state_dict 不验证形状，即使形状不匹配也会"成功"）
         optimizer.load_state_dict(checkpoint_dict['optimizer'])
+        # 逐参数验证优化器状态形状，清理不匹配的条目
+        # （如 harmonic_num 从 8→16 导致 m_source.l_linear 权重从 [1,9] 变为 [1,17]）
+        # 需删除整个 state[param] 条目（仅删除 exp_avg/exp_avg_sq 会在 step() 中报 KeyError）
+        cleaned = 0
+        for param in (p for g in optimizer.param_groups for p in g['params']):
+            if param in optimizer.state:
+                for key in ['exp_avg', 'exp_avg_sq']:
+                    if key in optimizer.state[param] and optimizer.state[param][key].shape != param.shape:
+                        del optimizer.state[param]
+                        cleaned += 1
+                        break
+        if cleaned > 0:
+            print(f"[WARN] Sanitized {cleaned} optimizer state entries with shape mismatch")
     saved_state_dict = checkpoint_dict['model']
     # 确保模型权重类型与当前模型一致，避免 BF16/FP16 切换时的类型冲突
     target_dtype = next(model.parameters()).dtype

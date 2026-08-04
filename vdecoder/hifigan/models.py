@@ -330,7 +330,7 @@ class Generator(torch.nn.Module):
         self.f0_upsamp = torch.nn.Upsample(scale_factor=np.prod(h["upsample_rates"]))
         self.m_source = SourceModuleHnNSF(
             sampling_rate=h["sampling_rate"],
-            harmonic_num=8)
+            harmonic_num=16)
         self.noise_convs = nn.ModuleList()
         self.conv_pre = weight_norm(Conv1d(h["inter_channels"], h["upsample_initial_channel"], 7, 1, padding=3))
         resblock = ResBlock1 if h["resblock"] == '1' else ResBlock2
