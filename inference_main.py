@@ -36,6 +36,7 @@ def main():
     parser.add_argument('-usm', '--use_spk_mix', action='store_true', default=False, help='是否使用角色融合')
     parser.add_argument('-lea', '--loudness_envelope_adjustment', type=float, default=1, help='输入源响度包络替换输出响度包络融合比例，越靠近1越使用输出响度包络')
     parser.add_argument('-fr', '--feature_retrieval', action='store_true', default=False, help='是否使用特征检索，如果使用聚类模型将被禁用，且cm与cr参数将会变成特征检索的索引路径与混合比例')
+    parser.add_argument('-mono', '--mono_mode', action='store_true', default=False, help='强制合并到单声道（默认关闭：立体声输入将逐声道推理并输出立体声）')
 
     # 浅扩散设置
     parser.add_argument('-dm', '--diffusion_model_path', type=str, default="logs/44k/diffusion/model_0.pt", help='扩散模型路径')
@@ -104,7 +105,8 @@ def main():
                     only_diffusion,
                     use_spk_mix,
                     args.feature_retrieval,
-                    vocoder_device=args.vocoder_device)
+                    vocoder_device=args.vocoder_device,
+                    mono_mode=args.mono_mode)
     
     # 从模型路径中提取训练步数
     model_name = args.model_path.split("/")[-1].split("\\")[-1]  # 获取模型文件名（兼容正斜杠和反斜杠）

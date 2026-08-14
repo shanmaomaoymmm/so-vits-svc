@@ -145,7 +145,7 @@ def modelUnload():
             torch.xpu.empty_cache()
         return sid.update(choices = [],value=""),"模型卸载完毕!"
     
-def vc_infer(output_format, sid, audio_path, truncated_basename, vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment):
+def vc_infer(output_format, sid, audio_path, truncated_basename, vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment, mono_mode):
     global model
     _audio = model.slice_inference(
         audio_path,
@@ -165,8 +165,9 @@ def vc_infer(output_format, sid, audio_path, truncated_basename, vc_transform, a
         k_step,
         use_spk_mix,
         second_encoding,
-        loudness_envelope_adjustment
-    )  
+        loudness_envelope_adjustment,
+        mono_mode=mono_mode
+    )
     model.clear_empty()
     #构建保存文件的路径，并保存到results文件夹内
     str(int(time.time()))
@@ -186,7 +187,7 @@ def vc_infer(output_format, sid, audio_path, truncated_basename, vc_transform, a
     soundfile.write(output_file, _audio, model.target_sample, format=output_format)
     return output_file
 
-def vc_fn(sid, input_audio, output_format, vc_transform, auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold,k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment):
+def vc_fn(sid, input_audio, output_format, vc_transform, auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold,k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment,mono_mode):
     global model
     try:
         if input_audio is None:
@@ -202,13 +203,12 @@ def vc_fn(sid, input_audio, output_format, vc_transform, auto_f0,cluster_ratio, 
         if np.issubdtype(audio.dtype, np.integer):
             audio = (audio / np.iinfo(audio.dtype).max).astype(np.float32)
         #print(audio.dtype)
-        if len(audio.shape) > 1:
-            audio = librosa.to_mono(audio.transpose(1, 0))
+        # 保留原始声道数（立体声支持）：slice_inference 内部会逐声道推理
         # 未知原因Gradio上传的filepath会有一个奇怪的固定后缀，这里去掉
         truncated_basename = Path(input_audio).stem[:-6]
         processed_audio = os.path.join("raw", f"{truncated_basename}.wav")
         soundfile.write(processed_audio, audio, sampling_rate, format="wav")
-        output_file = vc_infer(output_format, sid, processed_audio, truncated_basename, vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment)
+        output_file = vc_infer(output_format, sid, processed_audio, truncated_basename, vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment, mono_mode)
 
         return "Success", output_file
     except Exception as e:
@@ -219,7 +219,7 @@ def vc_fn(sid, input_audio, output_format, vc_transform, auto_f0,cluster_ratio, 
 def text_clear(text):
     return re.sub(r"[\n\,\(\) ]", "", text)
 
-def vc_fn2(_text, _lang, _gender, _rate, _volume, sid, output_format, vc_transform, auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold, k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment):
+def vc_fn2(_text, _lang, _gender, _rate, _volume, sid, output_format, vc_transform, auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold, k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment,mono_mode):
     global model
     try:
         if model is None:
@@ -240,7 +240,7 @@ def vc_fn2(_text, _lang, _gender, _rate, _volume, sid, output_format, vc_transfo
         soundfile.write("tts.wav", resampled_y, target_sr, subtype = "PCM_16")
         input_audio = "tts.wav"
         #audio, _ = soundfile.read(input_audio)
-        output_file_path = vc_infer(output_format, sid, input_audio, "tts", vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment)
+        output_file_path = vc_infer(output_format, sid, input_audio, "tts", vc_transform, auto_f0, cluster_ratio, slice_db, noise_scale, pad_seconds, cl_num, lg_num, lgr_num, f0_predictor, enhancer_adaptive_key, cr_threshold, k_step, use_spk_mix, second_encoding, loudness_envelope_adjustment, mono_mode)
         os.remove("tts.wav")
         return "Success", output_file_path
     except Exception as e:
@@ -340,6 +340,7 @@ with gr.Blocks() as app:
                     loudness_envelope_adjustment = gr.Number(label="输入源响度包络替换输出响度包络融合比例，越靠近1越使用输出响度包络", value = 0)
                     second_encoding = gr.Checkbox(label = "二次编码，浅扩散前会对原始音频进行二次编码，玄学选项，效果时好时差，默认关闭", value=False)
                     use_spk_mix = gr.Checkbox(label = "动态声线融合", value = False, interactive = False)
+                    mono_mode = gr.Checkbox(label = "强制合并到单声道（关闭时立体声输入将逐声道推理并输出立体声）", value=False)
             with gr.Tabs():
                 with gr.TabItem("音频转音频"):
                     vc_input3 = gr.Audio(label="选择音频", type="filepath")
@@ -417,8 +418,8 @@ with gr.Blocks() as app:
         local_model_tab_upload.select(lambda: False, outputs=local_model_enabled)
         local_model_tab_local.select(lambda: True, outputs=local_model_enabled)
         
-        vc_submit.click(vc_fn, [sid, vc_input3, output_format, vc_transform,auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold,k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment], [vc_output1, vc_output2])
-        vc_submit2.click(vc_fn2, [text2tts, tts_lang, tts_gender, tts_rate, tts_volume, sid, output_format, vc_transform,auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold,k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment], [vc_output1, vc_output2])
+        vc_submit.click(vc_fn, [sid, vc_input3, output_format, vc_transform,auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold,k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment,mono_mode], [vc_output1, vc_output2])
+        vc_submit2.click(vc_fn2, [text2tts, tts_lang, tts_gender, tts_rate, tts_volume, sid, output_format, vc_transform,auto_f0,cluster_ratio, slice_db, noise_scale,pad_seconds,cl_num,lg_num,lgr_num,f0_predictor,enhancer_adaptive_key,cr_threshold,k_step,use_spk_mix,second_encoding,loudness_envelope_adjustment,mono_mode], [vc_output1, vc_output2])
 
         debug_button.change(debug_change,[],[])
         model_load_button.click(modelAnalysis,[model_path,config_path,cluster_model_path,device,enhance,diff_model_path,diff_config_path,only_diffusion,use_spk_mix,local_model_enabled,local_model_selection],[sid,sid_output])

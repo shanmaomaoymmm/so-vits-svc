@@ -20,6 +20,24 @@ def wav2wav():
     chunks = slicer.cut(audio_path, db_thresh=-40)
     audio_data, audio_sr = slicer.chunks2audio(audio_path, chunks)
 
+    # 强制单声道模式：立体声切片降混为单声道，与 infer 输出保持一致
+    if getattr(svc_model, 'mono_mode', False):
+        audio_data = [
+            (tag, d.mean(axis=1) if d is not None and d.ndim > 1 else d)
+            for tag, d in audio_data
+        ]
+        n_channels = 1
+    else:
+        # 立体声支持：从第一个有声切片推断声道数，静音段/填充与有声段维度保持一致
+        n_channels = 1
+        for (slice_tag, data) in audio_data:
+            if not slice_tag and data is not None and len(data) > 0:
+                n_channels = data.shape[1] if data.ndim > 1 else 1
+                break
+
+    def _zeros(shape, n=n_channels):
+        return np.zeros((shape, n)) if n > 1 else np.zeros(shape)
+
     audio = []
     for (slice_tag, data) in audio_data:
         print(f'#=====segment start, {round(len(data) / audio_sr, 3)}s======')
@@ -27,11 +45,11 @@ def wav2wav():
         length = int(np.ceil(len(data) / audio_sr * svc_model.target_sample))
         if slice_tag:
             print('jump empty segment')
-            _audio = np.zeros(length)
+            _audio = _zeros(length)
         else:
             # padd
             pad_len = int(audio_sr * 0.5)
-            data = np.concatenate([np.zeros([pad_len]), data, np.zeros([pad_len])])
+            data = np.concatenate([_zeros(pad_len), data, _zeros(pad_len)])
             raw_path = io.BytesIO()
             soundfile.write(raw_path, data, audio_sr, format="wav")
             raw_path.seek(0)

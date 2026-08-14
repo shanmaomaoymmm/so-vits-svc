@@ -66,7 +66,11 @@ def timeit(func):
 def format_wav(audio_path):
     if Path(audio_path).suffix == '.wav':
         return
-    raw_audio, raw_sample_rate = librosa.load(audio_path, mono=True, sr=None)
+    # 保留原始声道数（mono=False），支持立体声输入
+    raw_audio, raw_sample_rate = librosa.load(audio_path, mono=False, sr=None)
+    if raw_audio.ndim > 1:
+        # librosa 返回 [channels, samples]，soundfile 需要 [samples, channels]
+        raw_audio = raw_audio.T
     soundfile.write(Path(audio_path).with_suffix(".wav"), raw_audio, raw_sample_rate)
 
 
@@ -102,7 +106,12 @@ def pad_array(arr, target_length):
         pad_width = target_length - current_length
         pad_left = pad_width // 2
         pad_right = pad_width - pad_left
-        padded_arr = np.pad(arr, (pad_left, pad_right), 'constant', constant_values=(0, 0))
+        if arr.ndim > 1:
+            # 仅沿时间轴（第一维）填充，保持声道维度不变（立体声支持）
+            pad_widths = [(pad_left, pad_right)] + [(0, 0)] * (arr.ndim - 1)
+        else:
+            pad_widths = (pad_left, pad_right)
+        padded_arr = np.pad(arr, pad_widths, 'constant', constant_values=0)
         return padded_arr
     
 def split_list_by_n(list_collection, n, pre=0):
@@ -124,12 +133,16 @@ class Svc(object):
                  only_diffusion = False,
                  spk_mix_enable = False,
                  feature_retrieval = False,
-                 vocoder_device = None
+                 vocoder_device = None,
+                 mono_mode = False
                  ):
         self.net_g_path = net_g_path
         self.only_diffusion = only_diffusion
         self.shallow_diffusion = shallow_diffusion
         self.feature_retrieval = feature_retrieval
+        # 强制单声道模式：True 时立体声输入将被降混为单声道并输出单声道（旧行为）；
+        # False 时立体声输入逐声道推理并输出立体声（默认）
+        self.mono_mode = mono_mode
         
         # 设备检测逻辑 - 仅支持XPU设备
         if device is None:
@@ -274,7 +287,13 @@ class Svc(object):
 
         c = c.unsqueeze(0)
         return c, f0, uv
-    
+
+    def _resolve_mono_mode(self, mono_mode):
+        """解析 mono_mode 参数：显式传入优先，否则使用实例属性（默认 False）。"""
+        if mono_mode is None:
+            return getattr(self, 'mono_mode', False)
+        return mono_mode
+
     def infer(self, speaker, tran, raw_path,
               cluster_infer_ratio=0,
               auto_predict_f0=False,
@@ -287,27 +306,77 @@ class Svc(object):
               frame = 0,
               spk_mix = False,
               second_encoding = False,
-              loudness_envelope_adjustment = 1
+              loudness_envelope_adjustment = 1,
+              mono_mode = None
               ):
         # 新版 torchaudio（>=2.0）移除 set_audio_backend 且默认使用 torchcodec
         # 改用 soundfile 直接加载（soundfile 已 import）
-        # soundfile 返回 [samples, channels]，torchaudio 返回 [channels, samples]
+        # soundfile 返回 [samples]（单声道）或 [samples, channels]（多声道）
         wav, sr = soundfile.read(raw_path)
-        # 确保音频是单声道
-        if wav.ndim > 1:
+        # 强制单声道模式：多声道输入降混为单声道，输出保持单声道
+        if self._resolve_mono_mode(mono_mode) and wav.ndim > 1:
             wav = np.mean(wav, axis=1)
-        # 检查音频长度是否过短（建议至少0.1秒），如果太短则填充
+        # 统一整理为 [channels, samples]，便于逐声道推理与统一重采样
+        if wav.ndim > 1:
+            wav = wav.T  # [channels, samples]
+        else:
+            wav = wav[None, :]  # [1, samples]
+        # 检查音频长度是否过短（建议至少0.1秒），如果太短则填充（所有声道一起填充）
         min_length = int(self.target_sample * 0.1)  # 0.1秒
-        if len(wav) < min_length:
-            wav = np.pad(wav, (0, min_length - len(wav)), mode='constant')
+        if wav.shape[1] < min_length:
+            pad = min_length - wav.shape[1]
+            wav = np.pad(wav, ((0, 0), (0, pad)), mode='constant')
             print(f"Warning: Audio too short, padded to {min_length / self.target_sample:.2f}s")
-        if not hasattr(self,"audio_resample_transform") or self.audio_resample_transform.orig_freq != sr:
-            self.audio_resample_transform = torchaudio.transforms.Resample(sr,self.target_sample)
-        wav = self.audio_resample_transform(torch.from_numpy(wav)).numpy()
+        if not hasattr(self, "audio_resample_transform") or self.audio_resample_transform.orig_freq != sr:
+            self.audio_resample_transform = torchaudio.transforms.Resample(sr, self.target_sample)
+        # 重采样作用于最后一维（时间轴），多声道 [channels, samples] 同样适用
+        wav = self.audio_resample_transform(torch.from_numpy(wav)).numpy()  # [channels, samples]
+
+        # 逐声道推理（每个声道独立走完整 SVC 流程），最后合并为多声道输出，实现立体声支持
+        audios = []
+        n_frames = 0
+        for ch in range(wav.shape[0]):
+            audio, n_frames = self._infer_mono(
+                wav[ch], speaker, tran,
+                cluster_infer_ratio=cluster_infer_ratio,
+                auto_predict_f0=auto_predict_f0,
+                noice_scale=noice_scale,
+                f0_filter=f0_filter,
+                f0_predictor=f0_predictor,
+                enhancer_adaptive_key=enhancer_adaptive_key,
+                cr_threshold=cr_threshold,
+                k_step=k_step,
+                frame=frame,
+                spk_mix=spk_mix,
+                second_encoding=second_encoding,
+                loudness_envelope_adjustment=loudness_envelope_adjustment)
+            audios.append(audio)
+        if len(audios) == 1:
+            audio = audios[0]  # 单声道，保持一维返回，兼容原有调用方
+        else:
+            audio = torch.stack(audios, dim=1)  # [samples, channels] 立体声
+        # 返回样本数（多声道 [samples, channels] 时取第一维）
+        n_samples = audio.shape[0] if audio.dim() == 2 else audio.shape[-1]
+        return audio, n_samples, n_frames
+
+    def _infer_mono(self, wav, speaker, tran,
+                    cluster_infer_ratio=0,
+                    auto_predict_f0=False,
+                    noice_scale=0.4,
+                    f0_filter=False,
+                    f0_predictor='pm',
+                    enhancer_adaptive_key=0,
+                    cr_threshold=0.05,
+                    k_step=100,
+                    frame=0,
+                    spk_mix=False,
+                    second_encoding=False,
+                    loudness_envelope_adjustment=1):
+        """对单声道波形（已重采样的一维 numpy 数组）执行完整 SVC 推理，返回 (audio, n_frames)。"""
         if spk_mix:
-            c, f0, uv = self.get_unit_f0(wav, tran, 0, None, f0_filter,f0_predictor,cr_threshold=cr_threshold)
+            c, f0, uv = self.get_unit_f0(wav, tran, 0, None, f0_filter, f0_predictor, cr_threshold=cr_threshold)
             n_frames = f0.size(1)
-            sid = speaker[:, frame:frame+n_frames].transpose(0,1)
+            sid = speaker[:, frame:frame + n_frames].transpose(0, 1)
         else:
             speaker_id = self.spk2id.get(speaker)
             if not speaker_id and type(speaker) is int:
@@ -316,7 +385,7 @@ class Svc(object):
             if speaker_id is None:
                 raise RuntimeError("The name you entered is not in the speaker list!")
             sid = torch.LongTensor([int(speaker_id)]).to(self.dev).unsqueeze(0)
-            c, f0, uv = self.get_unit_f0(wav, tran, cluster_infer_ratio, speaker, f0_filter,f0_predictor,cr_threshold=cr_threshold)
+            c, f0, uv = self.get_unit_f0(wav, tran, cluster_infer_ratio, speaker, f0_filter, f0_predictor, cr_threshold=cr_threshold)
             n_frames = f0.size(1)
         c = c.to(self.dtype)
         f0 = f0.to(self.dtype)
@@ -325,10 +394,10 @@ class Svc(object):
             start = time.time()
             vol = None
             if not self.only_diffusion:
-                vol = self.volume_extractor.extract(torch.FloatTensor(wav).to(self.dev)[None,:])[None,:].to(self.dev) if self.vol_embedding else None
-                audio,f0 = self.net_g_ms.infer(c, f0=f0, g=sid, uv=uv, predict_f0=auto_predict_f0, noice_scale=noice_scale,vol=vol)
-                audio = audio[0,0].data.float()
-                audio_mel = self.vocoder.extract(audio[None,:],self.target_sample) if self.shallow_diffusion else None
+                vol = self.volume_extractor.extract(torch.FloatTensor(wav).to(self.dev)[None, :])[None, :].to(self.dev) if self.vol_embedding else None
+                audio, f0 = self.net_g_ms.infer(c, f0=f0, g=sid, uv=uv, predict_f0=auto_predict_f0, noice_scale=noice_scale, vol=vol)
+                audio = audio[0, 0].data.float()
+                audio_mel = self.vocoder.extract(audio[None, :], self.target_sample) if self.shallow_diffusion else None
             else:
                 audio = torch.FloatTensor(wav).to(self.dev)
                 audio_mel = None
@@ -337,42 +406,42 @@ class Svc(object):
                 f0 = f0.to(torch.float32)
                 uv = uv.to(torch.float32)
             if self.only_diffusion or self.shallow_diffusion:
-                vol = self.volume_extractor.extract(audio[None,:])[None,:,None].to(self.dev) if vol is None else vol[:,:,None]
+                vol = self.volume_extractor.extract(audio[None, :])[None, :, None].to(self.dev) if vol is None else vol[:, :, None]
                 if self.shallow_diffusion and second_encoding:
-                    if not hasattr(self,"audio16k_resample_transform"):
+                    if not hasattr(self, "audio16k_resample_transform"):
                         self.audio16k_resample_transform = torchaudio.transforms.Resample(self.target_sample, 16000).to(self.dev)
-                    audio16k = self.audio16k_resample_transform(audio[None,:])[0]
+                    audio16k = self.audio16k_resample_transform(audio[None, :])[0]
                     c = self.hubert_model.encoder(audio16k)
-                    c = utils.repeat_expand_2d(c.squeeze(0), f0.shape[1],self.unit_interpolate_mode)
+                    c = utils.repeat_expand_2d(c.squeeze(0), f0.shape[1], self.unit_interpolate_mode)
                     c = c.unsqueeze(0)  # 恢复 batch 维度，避免维度错乱
-                f0 = f0[:,:,None]
-                c = c.transpose(-1,-2)
+                f0 = f0[:, :, None]
+                c = c.transpose(-1, -2)
                 audio_mel = self.diffusion_model(
-                c, 
-                f0, 
-                vol, 
-                spk_id = sid, 
-                spk_mix_dict = None,
-                gt_spec=audio_mel,
-                infer=True, 
-                infer_speedup=self.diffusion_args.infer.speedup, 
-                method=self.diffusion_args.infer.method,
-                k_step=k_step)
+                    c,
+                    f0,
+                    vol,
+                    spk_id=sid,
+                    spk_mix_dict=None,
+                    gt_spec=audio_mel,
+                    infer=True,
+                    infer_speedup=self.diffusion_args.infer.speedup,
+                    method=self.diffusion_args.infer.method,
+                    k_step=k_step)
                 # 声码器合成可在独立设备（CPU/XPU）上执行，规避 XPU 高频噪声问题
                 vd = self.vocoder.device
                 audio = self.vocoder.infer(audio_mel.to(vd), f0.to(vd)).squeeze().to(self.dev)
             if self.nsf_hifigan_enhance:
                 audio, _ = self.enhancer.enhance(
-                                    audio[None,:], 
-                                    self.target_sample, 
-                                    f0[:,:,None], 
-                                    self.hps_ms.data.hop_length, 
-                                    adaptive_key = enhancer_adaptive_key)
+                    audio[None, :],
+                    self.target_sample,
+                    f0[:, :, None],
+                    self.hps_ms.data.hop_length,
+                    adaptive_key=enhancer_adaptive_key)
             if loudness_envelope_adjustment != 1:
-                audio = utils.change_rms(wav,self.target_sample,audio,self.target_sample,loudness_envelope_adjustment)
+                audio = utils.change_rms(wav, self.target_sample, audio, self.target_sample, loudness_envelope_adjustment)
             use_time = time.time() - start
             print("vits use time:{}".format(use_time))
-        return audio, audio.shape[-1], n_frames
+        return audio, n_frames
 
     def clear_empty(self):
         # clean up vram for XPU
@@ -407,7 +476,8 @@ class Svc(object):
                         k_step = 100,
                         use_spk_mix = False,
                         second_encoding = False,
-                        loudness_envelope_adjustment = 1
+                        loudness_envelope_adjustment = 1,
+                        mono_mode = None
                         ):
         if use_spk_mix:
             if len(self.spk2id) == 1:
@@ -416,6 +486,19 @@ class Svc(object):
         wav_path = Path(raw_audio_path).with_suffix('.wav')
         chunks = slicer.cut(wav_path, db_thresh=slice_db)
         audio_data, audio_sr = slicer.chunks2audio(wav_path, chunks)
+        # 强制单声道模式：将多声道切片降混为单声道，输出保持单声道
+        mono = self._resolve_mono_mode(mono_mode)
+        if mono:
+            audio_data = [
+                (tag, d.mean(axis=1) if d is not None and d.ndim > 1 else d)
+                for tag, d in audio_data
+            ]
+            n_channels = 1
+        else:
+            # 立体声支持：检测输入音频声道数，静音段/填充需与有声段维度一致
+            n_channels = soundfile.info(wav_path).channels
+        def _zeros(shape, n=n_channels):
+            return np.zeros((shape, n)) if n > 1 else np.zeros(shape)
         per_size = int(clip_seconds*audio_sr)
         lg_size = int(lg_num*audio_sr)
         lg_size_r = int(lg_size*lgr_num)
@@ -485,7 +568,7 @@ class Svc(object):
             length = int(np.ceil(len(data) / audio_sr * self.target_sample))
             if slice_tag:
                 print('jump empty segment')
-                _audio = np.zeros(length)
+                _audio = _zeros(length)
                 audio.extend(list(pad_array(_audio, length)))
                 global_frame += length // self.hop_size
                 continue
@@ -499,7 +582,7 @@ class Svc(object):
                     print(f'###=====segment clip start, {round(len(dat) / audio_sr, 3)}s======')
                 # padd
                 pad_len = int(audio_sr * pad_seconds)
-                dat = np.concatenate([np.zeros([pad_len]), dat, np.zeros([pad_len])])
+                dat = np.concatenate([_zeros(pad_len), dat, _zeros(pad_len)])
                 raw_path = io.BytesIO()
                 soundfile.write(raw_path, dat, audio_sr, format="wav")
                 raw_path.seek(0)
@@ -514,7 +597,8 @@ class Svc(object):
                                                     frame = global_frame,
                                                     spk_mix = use_spk_mix,
                                                     second_encoding = second_encoding,
-                                                    loudness_envelope_adjustment = loudness_envelope_adjustment
+                                                    loudness_envelope_adjustment = loudness_envelope_adjustment,
+                                                    mono_mode = mono
                                                     )
                 global_frame += out_frame
                 _audio = out_audio.cpu().numpy()

@@ -33,7 +33,14 @@ def voice_change_model():
         # out_audio, out_sr = svc_model.infer(speaker_id, f_pitch_change, input_wav_path)
         out_audio, out_sr = svc_model.infer(speaker_id, f_pitch_change, input_wav_path, cluster_infer_ratio=0,
                                             auto_predict_f0=False, noice_scale=0.4, f0_filter=False)
+        # 立体声支持：infer 返回 [samples, channels]，torchaudio 重采样要求时间轴在最后一维，
+        # 因此先转置为 [channels, samples]，重采样后再转置回 [samples, channels]。
+        is_stereo = out_audio.dim() == 2
+        if is_stereo:
+            out_audio = out_audio.transpose(0, 1)  # [samples, channels] -> [channels, samples]
         tar_audio = torchaudio.functional.resample(out_audio, svc_model.target_sample, daw_sample)
+        if is_stereo:
+            tar_audio = tar_audio.transpose(0, 1)  # [channels, samples] -> [samples, channels]
     else:
         out_audio = svc.process(svc_model, speaker_id, f_pitch_change, input_wav_path, cluster_infer_ratio=0,
                                 auto_predict_f0=False, noice_scale=0.4, f0_filter=False)

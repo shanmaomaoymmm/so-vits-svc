@@ -134,15 +134,10 @@ def chunks2audio(audio_path, chunks):
     chunks = dict(chunks)
     # 使用soundfile和librosa替换torchaudio.load，避免torchcodec依赖
     audio_data, sr = sf.read(audio_path)
-    
-    # 处理音频数据维度，保持与原代码兼容
-    if len(audio_data.shape) > 1:
-        # 多声道音频，转换为单声道
-        audio = librosa.to_mono(audio_data.T)
-    else:
-        # 单声道音频
-        audio = audio_data
-    
+    # 保留原始声道数：单声道 [samples] 或立体声 [samples, channels]。
+    # 切片点由 slicer.cut（基于降混单声道）确定，时间轴一致，可直接用于多声道数据切片。
+    audio = audio_data
+
     result = []
     for k, v in chunks.items():
         tag = v["split_time"].split(",")
