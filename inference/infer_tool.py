@@ -123,7 +123,8 @@ class Svc(object):
                  shallow_diffusion = False,
                  only_diffusion = False,
                  spk_mix_enable = False,
-                 feature_retrieval = False
+                 feature_retrieval = False,
+                 vocoder_device = None
                  ):
         self.net_g_path = net_g_path
         self.only_diffusion = only_diffusion
@@ -142,6 +143,14 @@ class Svc(object):
         else:
             self.dev = torch.device(device)
             
+        # 声码器(NSF-HiFiGAN)合成设备：默认跟随主推理设备。
+        # 在 XPU 上 nsf_hifigan 波形合成存在高频噪声问题，可指定 'cpu' 规避。
+        if vocoder_device is None:
+            self.vocoder_dev = self.dev
+        else:
+            self.vocoder_dev = torch.device(vocoder_device)
+        print(" > vocoder device: {}".format(self.vocoder_dev))
+            
         self.net_g_ms = None
         if not self.only_diffusion:
             self.hps_ms = utils.get_hparams_from_file(config_path,True)
@@ -156,6 +165,10 @@ class Svc(object):
         if self.shallow_diffusion or self.only_diffusion:
             if os.path.exists(diffusion_model_path) and os.path.exists(diffusion_model_path):
                 self.diffusion_model,self.vocoder,self.diffusion_args = load_model_vocoder(diffusion_model_path,self.dev,config_path=diffusion_config_path)
+                # 若指定了声码器设备且与主设备不同，则将声码器切换到目标设备
+                if str(self.vocoder_dev) != str(self.dev):
+                    self.vocoder.set_device(self.vocoder_dev)
+                    print(" > vocoder moved to {} (main device {})".format(self.vocoder_dev, self.dev))
                 if self.only_diffusion:
                     self.target_sample = self.diffusion_args.data.sampling_rate
                     self.hop_size = self.diffusion_args.data.block_size
@@ -345,7 +358,9 @@ class Svc(object):
                 infer_speedup=self.diffusion_args.infer.speedup, 
                 method=self.diffusion_args.infer.method,
                 k_step=k_step)
-                audio = self.vocoder.infer(audio_mel, f0).squeeze()
+                # 声码器合成可在独立设备（CPU/XPU）上执行，规避 XPU 高频噪声问题
+                vd = self.vocoder.device
+                audio = self.vocoder.infer(audio_mel.to(vd), f0.to(vd)).squeeze().to(self.dev)
             if self.nsf_hifigan_enhance:
                 audio, _ = self.enhancer.enhance(
                                     audio[None,:], 

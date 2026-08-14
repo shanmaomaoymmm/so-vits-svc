@@ -22,7 +22,16 @@ class Vocoder:
         self.vocoder_sample_rate = self.vocoder.sample_rate()
         self.vocoder_hop_size = self.vocoder.hop_size()
         self.dimension = self.vocoder.dimension()
-        
+
+    def set_device(self, device):
+        """切换声码器运行设备（懒加载模型将加载到新设备）。
+        注意：若模型已加载，需手动迁移模型权重。"""
+        self.device = device
+        self.vocoder.device = device
+        if self.vocoder.model is not None:
+            self.vocoder.model = self.vocoder.model.to(device)
+        return self
+
     def extract(self, audio, sample_rate, keyshift=0):
                 
         # resample

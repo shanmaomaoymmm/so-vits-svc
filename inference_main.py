@@ -48,6 +48,7 @@ def main():
     # 不用动的部分
     parser.add_argument('-sd', '--slice_db', type=int, default=-40, help='默认-40，嘈杂的音频可以-30，干声保留呼吸可以-50')
     parser.add_argument('-d', '--device', type=str, default=None, help='推理设备，None则为自动选择cpu和gpu')
+    parser.add_argument('-vd', '--vocoder_device', type=str, default=None, help='声码器(NSF-HiFiGAN)合成设备，可指定cpu或xpu；默认None则跟随主推理设备。若在XPU上出现高频噪声，建议设为cpu')
     parser.add_argument('-ns', '--noice_scale', type=float, default=0.4, help='噪音级别，会影响咬字和音质，较为玄学')
     parser.add_argument('-p', '--pad_seconds', type=float, default=0.5, help='推理音频pad秒数，由于未知原因开头结尾会有异响，pad一小段静音段后就不会出现')
     parser.add_argument('-wf', '--wav_format', type=str, default='flac', help='音频输出格式')
@@ -102,7 +103,8 @@ def main():
                     shallow_diffusion,
                     only_diffusion,
                     use_spk_mix,
-                    args.feature_retrieval)
+                    args.feature_retrieval,
+                    vocoder_device=args.vocoder_device)
     
     # 从模型路径中提取训练步数
     model_name = args.model_path.split("/")[-1].split("\\")[-1]  # 获取模型文件名（兼容正斜杠和反斜杠）
@@ -153,7 +155,12 @@ def main():
                 isdiffusion = "diff"
             if use_spk_mix:
                 spk = "spk_mix"
-            res_path = f'results/{clean_name}_{key}_{spk}{cluster_name}_{isdiffusion}_{f0p}_{model_step}.{wav_format}'
+            # 声码器设备标识（cpu / xpu），便于区分不同合成设备的输出
+            if hasattr(svc_model, 'vocoder_dev'):
+                voc_dev = str(svc_model.vocoder_dev).replace("cuda", "gpu")
+            else:
+                voc_dev = str(svc_model.dev).replace("cuda", "gpu")
+            res_path = f'results/{clean_name}_{key}_{spk}{cluster_name}_{isdiffusion}_{f0p}_{model_step}_voc{voc_dev}.{wav_format}'
             
             # 检查并清理音频数据，确保没有NaN或无穷大值
             audio = np.array(audio)

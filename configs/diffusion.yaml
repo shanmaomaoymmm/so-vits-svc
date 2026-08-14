@@ -20,7 +20,9 @@ infer:
   method: dpm-solver++
   speedup: 10
 model:
-  k_step_max: 0
+  # Shallow diffusion: k_step_max=100, train t in [0,100) only, for main-model shallow-diffusion enhancement
+  # Inference -ks must be <= k_step_max (use -ks 100) to avoid high-freq noise from full-diff model
+  k_step_max: 100
   n_chans: 512
   n_hidden: 256
   n_layers: 20
@@ -31,11 +33,14 @@ model:
 spk:
   huawu: 0
 train:
-  amp_dtype: bf16
-  batch_size: 48
+  # fp32: fix high-freq noise (original project default). bf16 has only 8-bit mantissa,
+  # so model fails to learn 12-16kHz mel bins -> 16k+ noise.
+  # fp32 uses more VRAM, so batch_size reduced 48 -> 32 for Arc A770 15.6GB.
+  amp_dtype: fp32
+  batch_size: 32
   cache_all_data: true
   cache_device: cpu
-  cache_fp16: true
+  cache_fp16: false
   decay_step: 100000
   epochs: 100000
   gamma: 0.5

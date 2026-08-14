@@ -471,6 +471,8 @@ python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "
 - `-usm` | `--use_spk_mix`：启用角色融合/动态声音混合
 - `-lea` | `--loudness_envelope_adjustment`：输入源与输出的响度包络混合比例。数值越接近1使用越多的输出响度包络
 - `-fr` | `--feature_retrieval`：启用特征检索（禁用聚类模型）。启用时cm和cr参数分别变为特征检索索引路径和混合比例
+- `-d` | `--device`：主推理设备。不指定时自动选择（Intel环境默认`xpu`）
+- `-vd` | `--vocoder_device`：声码器（NSF-HiFiGAN）合成设备，可指定`cpu`或`xpu`。默认不指定时跟随主推理设备
 
 浅层扩散设置：
 + `-dm` | `--diffusion_model_path`：扩散模型路径
@@ -478,6 +480,16 @@ python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "
 + `-ks` | `--k_step`：扩散步数。数值越高结果越接近扩散模型输出（默认：100）
 + `-od` | `--only_diffusion`：纯扩散模式。此模式不会加载SoVITS模型，仅使用扩散模型进行推理
 + `-se` | `--second_encoding`：二次编码。在浅层扩散前对原始音频进行额外编码。这是实验性选项，效果不定
+
+> **⚠️ XPU 声码器高频噪声问题（重要）**
+> 在 Intel XPU 上，`nsf_hifigan` 声码器的 `noise_convs`（Conv1d）内核在处理低幅度谐波信号（`har_source`）时存在数值错误，会导致**16kHz 以上频段出现白噪声**（实测输出 8k+ 高频占比高达 30%+，且整体响度偏弱）。
+> - **现象**：启用浅层扩散（`-shd`）时，输出音频出现明显高频嘶声/白噪；不启用扩散（纯 SoVITS）则正常。
+> - **根因**：XPU 后端 Conv1d 内核缺陷（PyTorch XPU 后端问题，非本项目代码问题；禁用 oneDNN、输入缩放均无法规避）。
+> - **解决办法**：推理时指定声码器在 CPU 合成，扩散模型与主模型仍留在 XPU，音质与速度兼顾：
+>   ```bash
+>   python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -shd -ks 100 -vd cpu
+>   ```
+>   加上 `-vd cpu` 后，输出 8k+ 高频占比从 30%+ 降至 <1%，音质恢复干净。
 
 注意：使用whisper-ppg语音编码器进行推理时，需设置`--clip`为25，`--lg`为1。否则无法正常推理。
 
@@ -1106,6 +1118,8 @@ Optional parameters:
 - `-usm` | `--use_spk_mix`: Enable character fusion/dynamic voice blending
 - `-lea` | `--loudness_envelope_adjustment`: Loudness envelope mixing ratio between input source and output. Values closer to 1 use more of the output loudness envelope
 - `-fr` | `--feature_retrieval`: Enable feature retrieval (disables clustering model). When enabled, cm and cr parameters become feature retrieval index path and mixing ratio respectively
+- `-d` | `--device`: Main inference device. Auto-selected when not specified (Intel environment defaults to `xpu`)
+- `-vd` | `--vocoder_device`: Vocoder (NSF-HiFiGAN) synthesis device, can be set to `cpu` or `xpu`. Defaults to follow the main inference device when not specified
 
 Shallow diffusion settings:
 + `-dm` | `--diffusion_model_path`: Diffusion model path
@@ -1113,6 +1127,16 @@ Shallow diffusion settings:
 + `-ks` | `--k_step`: Number of diffusion steps. Higher values produce results closer to the diffusion model's output (default: 100)
 + `-od` | `--only_diffusion`: Pure diffusion mode. This mode will not load the SoVITS model and will perform inference using only the diffusion model
 + `-se` | `--second_encoding`: Secondary encoding. Performs additional encoding on the original audio before shallow diffusion. This is an experimental option with variable results
+
+> **⚠️ XPU Vocoder High-Frequency Noise Issue (Important)**
+> On Intel XPU, the `nsf_hifigan` vocoder's `noise_convs` (Conv1d) kernel has a numerical bug when processing low-amplitude harmonic signals (`har_source`), causing **white noise above 16 kHz** (measured: output 8k+ high-frequency ratio can exceed 30%, with overall weakened loudness).
+> - **Symptom**: When shallow diffusion (`-shd`) is enabled, obvious high-frequency hissing/white noise appears in the output; pure SoVITS (no diffusion) is normal.
+> - **Root cause**: Conv1d kernel defect in the PyTorch XPU backend (not a bug in this project's code; disabling oneDNN or input scaling cannot avoid it).
+> - **Solution**: Specify the vocoder to synthesize on CPU during inference, while the diffusion model and main model stay on XPU, balancing quality and speed:
+>   ```bash
+>   python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -shd -ks 100 -vd cpu
+>   ```
+>   With `-vd cpu`, the output 8k+ high-frequency ratio drops from 30%+ to <1%, and the audio quality returns to clean.
 
 Note: When using whisper-ppg speech encoder for inference, set `--clip` to 25 and `--lg` to 1. Otherwise, normal inference will not be possible.
 
