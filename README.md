@@ -438,18 +438,53 @@ tensorboard --logdir logs/44k --bind_all
 
 ## 📝 模型推理
 
-### 1. 实时变声
+### 1. 实时变声（API服务）
 
-启动实时变声功能：
+启动实时变声 API 服务（配合 VST 插件使用，默认监听 `0.0.0.0:6842`）：
 ```bash
-python gui.py
+python flask_api.py
 ```
+> 注意：本项目不提供 `gui.py` 图形界面。使用前请先修改 [`flask_api.py`](flask_api.py) 中的 `model_name`、`config_name`、`cluster_model_path` 为您的模型路径。
 
 ### 2. 批量推理
 
 使用命令行进行批量推理：
 ```bash
 python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi"
+```
+
+**更多常用推理命令示例**：
+
+```bash
+# 1. 变调推理：整体升高 2 个半音（-t 2），使用 rmvpe F0 预测器（-f0p rmvpe，歌曲更稳）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 2 -s "buyizi" -f0p rmvpe
+
+# 2. 语音转换：开启自动音高预测（-a，仅适合说话，唱歌会严重跑调）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "讲话.wav" -t 0 -s "buyizi" -a
+
+# 3. 聚类音色控制：使用聚类模型，占比 0.5（-cr 0.5，需先训练 cluster/train_cluster.py）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -cm "logs/44k/kmeans_10000.pt" -cr 0.5
+
+# 4. 特征检索：使用特征检索索引，占比 0.5（-fr，需先训练 train_index.py）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -fr -cr 0.5
+
+# 5. 浅扩散：解决电音问题（-shd，需先训练扩散模型，必须指定 -dm/-dc 扩散模型路径与配置）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -dm "logs/44k/diffusion/model_0.pt" -dc "logs/44k/diffusion/config.yaml" -shd -ks 100 -vd cpu
+
+# 6. 纯扩散：仅使用扩散模型推理（-od，需完整训练的扩散模型，必须指定 -dm/-dc）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -dm "logs/44k/diffusion/model_0.pt" -dc "logs/44k/diffusion/config.yaml" -od -ks 100
+
+# 7. 增强器：开启 NSF-HIFIGAN 增强器（-eh，训练数据少时可改善音质）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -eh
+
+# 8. 角色融合：开启说话人混合（-usm，需在 spkmix.py 中配置）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -usm
+
+# 9. 指定设备：模型与声码器均使用 CPU 推理（-d cpu -vd cpu）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -d cpu -vd cpu
+
+# 10. 批量推理：一次转换多个音频（-n 后可跟多个文件名，-t 逐一对应）
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "song1.wav" "song2.wav" -t 0 0 -s "buyizi"
 ```
 
 必需参数：
@@ -487,7 +522,7 @@ python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "
 > - **根因**：XPU 后端 Conv1d 内核缺陷（PyTorch XPU 后端问题，非本项目代码问题；禁用 oneDNN、输入缩放均无法规避）。
 > - **解决办法**：推理时指定声码器在 CPU 合成，扩散模型与主模型仍留在 XPU，音质与速度兼顾：
 >   ```bash
->   python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -shd -ks 100 -vd cpu
+>   python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -dm "logs/44k/diffusion/model_0.pt" -dc "logs/44k/diffusion/config.yaml" -shd -ks 100 -vd cpu
 >   ```
 >   加上 `-vd cpu` 后，输出 8k+ 高频占比从 30%+ 降至 <1%，音质恢复干净。
 
@@ -556,54 +591,37 @@ python compress_model.py -c="configs/config.json" -i="logs/44k/G_<模型名称>.
 
 将模型导出为ONNX格式以便部署：
 
+1. 在项目根目录新建 `checkpoints/<模型文件夹名>` 文件夹；
+2. 将训练好的模型重命名为 `model.pth`、配置文件重命名为 `config.json`，放入该文件夹；
+3. 执行导出命令（`-n` 指定模型文件夹名）：
+
+```bash
+python onnx_export.py -n <模型文件夹名>
 ```
-python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
-```
+
+导出完成后，会在 `checkpoints/<模型文件夹名>/` 下生成 `<模型文件夹名>_SoVits.onnx`，同时在 `checkpoints/` 下生成对应的 MoeVS 配置 `<模型文件夹名>.json`。
+
+> 注意：本项目使用 [`onnx_export.py`](onnx_export.py) 导出（支持说话人混合），不是 `export_onnx.py`。
 
 ## ⚙️ XPU设备训练建议
 
-对于Intel XPU设备，建议使用以下配置以获得最佳性能和稳定性：
+> ⚠️ **重要：当前建议使用 FP32 训练**
 
-1. **混合精度支持**: 现代Intel XPU设备通常支持完整的FP16/BF16混合精度训练
-   - **FP32**: 完全支持，最稳定的选项
-   - **FP16**: 基本支持，性能提升显著
-   - **BF16**: 推荐选项，Intel XPU上的最佳选择，提供良好的性能和稳定性
+虽然 Intel XPU 硬件在底层支持 FP16/BF16 计算，但本项目在实际训练中验证发现，**混合精度（FP16/BF16）存在明显问题，训练不稳定**，因此**强烈建议当前仍使用 FP32（`fp16_run: false`）进行训练**。
 
-2. **精度支持检测**:
-   运行以下脚本快速检测您的XPU设备精度支持情况：
-   ```bash
-   python check_xpu_precision.py
-   ```
+**FP16 训练存在的问题**：
+- FP16 指数范围仅 ±6.5×10⁴，梯度容易**下溢/溢出**，训练早期极易出现 `NaN` 损失并导致训练中断；
+- 需要依赖 `GradScaler` 动态梯度缩放，但 PyTorch XPU 后端对 `GradScaler` 的支持不完善，`unscale_` 阶段可能出现 FP64 相关报错（见 [`train.py`](train.py:549)）；
+- 在 Intel Arc A770 等设备上，FP16 满载训练更容易触发 `DEVICE_LOST` 崩溃。
 
-3. **推荐配置参数**:
-   
-   **推荐配置（BF16）**:
-   ```json
-   {
-     "train": {
-       "batch_size": 6,
-       "fp16_run": true,
-       "half_type": "bf16",
-       "grad_accumulation_steps": 2,
-       "all_in_mem": false
-     }
-   }
-   ```
-   
-   **备选配置（FP16）**:
-   ```json
-   {
-     "train": {
-       "batch_size": 6,
-       "fp16_run": true,
-       "half_type": "fp16",
-       "grad_accumulation_steps": 2,
-       "all_in_mem": false
-     }
-   }
-   ```
-   
-   **稳定配置（FP32）**:
+**BF16 训练存在的问题**：
+- BF16 尾数仅 7 位（约 2~3 位十进制精度），STFT/Mel 频谱计算精度损失严重，**输出音频会出现电子杂音**（[`modules/mel_processing.py`](modules/mel_processing.py:61) 已为此保留 FP32）；
+- 损失函数（如 MSE）在 BF16 下精度损失明显，代码中已显式转回 FP32 规避（[`modules/losses.py`](modules/losses.py:8)）；
+- `fused` 优化器在 BF16 下存在 FP64 兼容性问题，已被禁用（[`train.py`](train.py:266)）。
+
+**结论**：FP16/BF16 带来的速度收益有限，但稳定性与音质损失代价较大，**当前请使用 FP32 训练**。
+
+1. **推荐配置（FP32，稳定首选）**:
    ```json
    {
      "train": {
@@ -616,23 +634,29 @@ python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
    }
    ```
 
-4. **性能优化建议**:
-   - **BF16优先**: 对于Intel XPU，BF16通常是最佳选择
-   - **合理batch_size**: 根据显存调整，通常4-8之间
-   - **梯度累积**: 使用grad_accumulation_steps模拟更大batch_size
-   - **内存管理**: 禁用all_in_mem避免内存溢出
-   - **定期清理**: 训练中定期调用torch.xpu.empty_cache()
+2. **精度支持检测**:
+   运行以下脚本快速检测您的XPU设备精度支持情况（仅供了解硬件能力）：
+   ```bash
+   python check_xpu_precision.py
+   ```
 
-5. **故障排除**:
-   - 如果遇到训练不稳定，逐步降低精度（BF16 → FP16 → FP32）
-   - 监控显存使用，适当调整batch_size和grad_accumulation_steps
+3. **性能优化建议**:
+   - **优先 FP32**: 稳定优先，避免混合精度导致的 NaN 与电子杂音
+   - **合理batch_size**: 根据显存调整，通常 4-8 之间
+   - **梯度累积**: 使用 grad_accumulation_steps 模拟更大 batch_size
+   - **内存管理**: 禁用 all_in_mem 避免内存溢出
+   - **定期清理**: 训练中定期调用 torch.xpu.empty_cache()
+
+4. **故障排除**:
+   - 如果遇到训练不稳定，请确认使用 FP32（`fp16_run: false`）
+   - 监控显存使用，适当调整 batch_size 和 grad_accumulation_steps
    - 确保驱动程序和PyTorch XPU版本为最新
    - 查看训练日志中的精度检测信息
 
 ## 🛑 已知问题
 
 1. 在Ubuntu等Linux系统下，模型训练会出现显存溢出的情况，致使模型无法正常训练。相较于在Windows下进行训练，在Linux下训练时请将batch_size调小。
-2. 生成hubert与f0功能如果使用多线程配置生成预处理文件，则训练时会出现无征兆闪退现象。
+2. ✅ **已解决**：生成hubert与f0功能使用多线程配置生成预处理文件导致训练闪退的问题。现已在 [`preprocess_hubert_f0.py`](preprocess_hubert_f0.py) 中加入多项保护机制——自动限制每进程 PyTorch 线程数为 1、设置 `OMP_NUM_THREADS`/`MKL_NUM_THREADS`、自动检测 Intel Arc A770 并限制进程数或建议 CPU 模式、按 CPU 核心数与内存给出建议进程数，可放心使用 `--num_processes` 多线程预处理。
 3. webUI.py基本不可用，运行会出现浏览器无限加载的情况。
 
 ## 🔗 参考项目及文献
@@ -1085,18 +1109,53 @@ After model training is completed, the model files are saved in the `logs/44k` d
 
 ## 📝 Model Inference
 
-### 1. Real-time Voice Changer
+### 1. Real-time Voice Changer (API Service)
 
-Start the real-time voice changing function:
+Start the real-time voice changing API service (works with a VST plugin, listens on `0.0.0.0:6842` by default):
 ```bash
-python gui.py
+python flask_api.py
 ```
+> Note: This project does not provide a `gui.py` GUI. Before use, edit `model_name`, `config_name`, and `cluster_model_path` in [`flask_api.py`](flask_api.py) to point to your model files.
 
 ### 2. Batch Inference
 
 Use command line for batch inference:
 ```bash
 python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi"
+```
+
+**More common inference command examples**:
+
+```bash
+# 1. Pitch shift: raise by 2 semitones (-t 2), use rmvpe F0 predictor (-f0p rmvpe, more stable for songs)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 2 -s "buyizi" -f0p rmvpe
+
+# 2. Voice conversion: enable automatic pitch prediction (-a, speech only; causes severe drift for singing)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "speech.wav" -t 0 -s "buyizi" -a
+
+# 3. Clustering timbre control: use clustering model with ratio 0.5 (-cr 0.5, requires cluster/train_cluster.py first)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -cm "logs/44k/kmeans_10000.pt" -cr 0.5
+
+# 4. Feature retrieval: use feature retrieval index with ratio 0.5 (-fr, requires train_index.py first)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -fr -cr 0.5
+
+# 5. Shallow diffusion: reduce electronic artifacts (-shd, requires a trained diffusion model; must specify -dm/-dc diffusion model and config paths)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -dm "logs/44k/diffusion/model_0.pt" -dc "logs/44k/diffusion/config.yaml" -shd -ks 100 -vd cpu
+
+# 6. Pure diffusion: diffusion-only inference (-od, requires a fully trained diffusion model; must specify -dm/-dc)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -dm "logs/44k/diffusion/model_0.pt" -dc "logs/44k/diffusion/config.yaml" -od -ks 100
+
+# 7. Enhancer: enable NSF-HIFIGAN enhancer (-eh, may improve quality for models with little training data)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -eh
+
+# 8. Speaker mix: enable character fusion (-usm, configure spkmix.py first)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -usm
+
+# 9. Specify device: run both model and vocoder on CPU (-d cpu -vd cpu)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -d cpu -vd cpu
+
+# 10. Batch inference: convert multiple files at once (-n accepts multiple filenames, -t maps one by one)
+python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "song1.wav" "song2.wav" -t 0 0 -s "buyizi"
 ```
 
 Required parameters:
@@ -1134,7 +1193,7 @@ Shallow diffusion settings:
 > - **Root cause**: Conv1d kernel defect in the PyTorch XPU backend (not a bug in this project's code; disabling oneDNN or input scaling cannot avoid it).
 > - **Solution**: Specify the vocoder to synthesize on CPU during inference, while the diffusion model and main model stay on XPU, balancing quality and speed:
 >   ```bash
->   python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -shd -ks 100 -vd cpu
+>   python inference_main.py -m "logs/44k/G_37600.pth" -c "configs/config.json" -n "君の知らない物語-src.wav" -t 0 -s "buyizi" -dm "logs/44k/diffusion/model_0.pt" -dc "logs/44k/diffusion/config.yaml" -shd -ks 100 -vd cpu
 >   ```
 >   With `-vd cpu`, the output 8k+ high-frequency ratio drops from 30%+ to <1%, and the audio quality returns to clean.
 
@@ -1202,14 +1261,72 @@ python compress_model.py -c="configs/config.json" -i="logs/44k/G_<model_name>.pt
 
 Export the model to ONNX format for deployment:
 
+1. Create a `checkpoints/<model_folder_name>` folder in the project root;
+2. Rename your trained model to `model.pth` and the config file to `config.json`, then place them in this folder;
+3. Run the export command (`-n` specifies the model folder name):
+
+```bash
+python onnx_export.py -n <model_folder_name>
 ```
-python export_onnx.py -c configs/config.json -m logs/44k/G_30400.pth
-```
+
+After exporting, `<model_folder_name>_SoVits.onnx` will be generated under `checkpoints/<model_folder_name>/`, and the corresponding MoeVS config `<model_folder_name>.json` under `checkpoints/`.
+
+> Note: This project uses [`onnx_export.py`](onnx_export.py) to export (with speaker-mix support), not `export_onnx.py`.
+
+## ⚙️ XPU Device Training Recommendations
+
+> ⚠️ **Important: Use FP32 training for now**
+
+Although Intel XPU hardware supports FP16/BF16 computation at the hardware level, actual training in this project has verified that **mixed precision (FP16/BF16) has notable stability issues**, so it is **strongly recommended to keep using FP32 (`fp16_run: false`) for training**.
+
+**Problems with FP16 training**:
+- FP16 has an exponent range of only ±6.5×10⁴, gradients easily **underflow/overflow**, and `NaN` losses are common early in training, interrupting it;
+- It relies on `GradScaler` for dynamic gradient scaling, but PyTorch XPU backend support for `GradScaler` is incomplete, and `unscale_` may throw FP64-related errors (see [`train.py`](train.py:549));
+- On devices such as Intel Arc A770, FP16 training at full load is more likely to trigger `DEVICE_LOST` crashes.
+
+**Problems with BF16 training**:
+- BF16 has only a 7-bit mantissa (about 2-3 significant decimal digits); STFT/Mel spectral computation suffers serious precision loss, causing **electronic noise in the output audio** ([`modules/mel_processing.py`](modules/mel_processing.py:61) already keeps FP32 for this reason);
+- Loss functions (such as MSE) lose noticeable precision under BF16; the code already casts back to FP32 explicitly to avoid this ([`modules/losses.py`](modules/losses.py:8));
+- The `fused` optimizer has FP64 compatibility issues under BF16 and has been disabled ([`train.py`](train.py:266)).
+
+**Conclusion**: The speed gains of FP16/BF16 are limited, but the cost in stability and audio quality is high, so **please use FP32 for training now**.
+
+1. **Recommended configuration (FP32, stable first)**:
+   ```json
+   {
+     "train": {
+       "batch_size": 4,
+       "fp16_run": false,
+       "half_type": "fp32",
+       "grad_accumulation_steps": 4,
+       "all_in_mem": false
+     }
+   }
+   ```
+
+2. **Precision support detection**:
+   Run the following script to quickly check your XPU device's precision support (for understanding hardware capability only):
+   ```bash
+   python check_xpu_precision.py
+   ```
+
+3. **Performance optimization tips**:
+   - **FP32 first**: prioritize stability and avoid NaN and electronic noise caused by mixed precision
+   - **Reasonable batch_size**: adjust based on VRAM, usually 4-8
+   - **Gradient accumulation**: use grad_accumulation_steps to simulate a larger batch_size
+   - **Memory management**: disable all_in_mem to avoid running out of memory
+   - **Periodic cleanup**: call torch.xpu.empty_cache() regularly during training
+
+4. **Troubleshooting**:
+   - If training is unstable, make sure FP32 is used (`fp16_run: false`)
+   - Monitor VRAM usage and adjust batch_size and grad_accumulation_steps accordingly
+   - Make sure the driver and PyTorch XPU version are up to date
+   - Check the precision detection info in the training logs
 
 ## 🛑 Known Issues
 
 1. Under Ubuntu and other Linux systems, model training will cause out-of-memory situations, causing the model to fail to train normally. Compared to training under Windows, when training under Linux, please reduce the batch_size.
-2. If multi-threading configuration is used to generate preprocessing files, unexplained crashes will occur during training.
+2. ✅ **Resolved**: The crash during training caused by generating preprocessing files with multi-threading configuration. [`preprocess_hubert_f0.py`](preprocess_hubert_f0.py) now includes multiple protection mechanisms — automatically limiting PyTorch threads to 1 per process, setting `OMP_NUM_THREADS`/`MKL_NUM_THREADS`, automatically detecting Intel Arc A770 and limiting process count or recommending CPU mode, and recommending a process count based on CPU cores and memory. You can safely use `--num_processes` for multi-threaded preprocessing.
 3. webUI.py is basically unusable, running will cause the browser to load infinitely.
 
 ## 🔗 Reference Projects and Literature
