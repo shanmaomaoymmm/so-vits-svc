@@ -695,6 +695,11 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
                     scalars=scalar_dict
                 )
 
+                # Intel XPU 稳定性优化：定期清理显存缓存，
+                # 缓解长时间满载训练导致的显存碎片积累与 DEVICE_LOST(UR_RESULT_ERROR_DEVICE_LOST)
+                if device_type == 'xpu':
+                    torch.xpu.empty_cache()
+
             if global_step % hps.train.eval_interval == 0:
                 # 再次检查损失是否为nan，确保在保存检查点之前没有nan
                 losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_kl]

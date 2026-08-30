@@ -1,7 +1,8 @@
 """Test if gradient clipping is working correctly"""
-import torch
+import os
 import sys
-sys.path.insert(0, '.')
+import torch
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules import commons
 

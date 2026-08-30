@@ -31,7 +31,6 @@
 ./dataset/44k/huawu/1205891033_90.wav
 ./dataset/44k/huawu/1155591443_620.wav
 ./dataset/44k/huawu/1505956834_266.wav
-./dataset/44k/huawu/sign2_1.wav
 ./dataset/44k/huawu/1755625659_1092.wav
 ./dataset/44k/huawu/1155271209_11.wav
 ./dataset/44k/huawu/1155591443_24.wav
@@ -42,7 +41,6 @@
 ./dataset/44k/huawu/1505956834_467.wav
 ./dataset/44k/huawu/1205891033_1971.wav
 ./dataset/44k/huawu/1205891033_748.wav
-./dataset/44k/huawu/sign2_32.wav
 ./dataset/44k/huawu/1205891033_1110.wav
 ./dataset/44k/huawu/1205891033_1007.wav
 ./dataset/44k/huawu/1155591443_182.wav
@@ -58,7 +56,6 @@
 ./dataset/44k/huawu/1155271209_483.wav
 ./dataset/44k/huawu/1205891033_845.wav
 ./dataset/44k/huawu/1755625659_421.wav
-./dataset/44k/huawu/sign5_14.wav
 ./dataset/44k/huawu/1155591443_308.wav
 ./dataset/44k/huawu/1155271209_405.wav
 ./dataset/44k/huawu/1205891033_149.wav
@@ -159,7 +156,6 @@
 ./dataset/44k/huawu/1755625659_409.wav
 ./dataset/44k/huawu/1505956834_240.wav
 ./dataset/44k/huawu/1205891033_581.wav
-./dataset/44k/huawu/sign2_15.wav
 ./dataset/44k/huawu/1755625659_1198.wav
 ./dataset/44k/huawu/1155271209_788.wav
 ./dataset/44k/huawu/1205891033_165.wav
@@ -324,7 +320,6 @@
 ./dataset/44k/huawu/1755625659_717.wav
 ./dataset/44k/huawu/1205891033_1680.wav
 ./dataset/44k/huawu/1155591443_87.wav
-./dataset/44k/huawu/sign5_23.wav
 ./dataset/44k/huawu/1155271209_668.wav
 ./dataset/44k/huawu/1755625659_71.wav
 ./dataset/44k/huawu/1505956834_604.wav
@@ -365,7 +360,6 @@
 ./dataset/44k/huawu/1155271209_619.wav
 ./dataset/44k/huawu/1155591443_367.wav
 ./dataset/44k/huawu/1205891033_1859.wav
-./dataset/44k/huawu/sign4_4.wav
 ./dataset/44k/huawu/1505956834_935.wav
 ./dataset/44k/huawu/1205891033_950.wav
 ./dataset/44k/huawu/1205891033_568.wav
@@ -445,7 +439,6 @@
 ./dataset/44k/huawu/1205891033_1903.wav
 ./dataset/44k/huawu/1205891033_549.wav
 ./dataset/44k/huawu/1755625659_154.wav
-./dataset/44k/huawu/sign1_18.wav
 ./dataset/44k/huawu/1755625659_326.wav
 ./dataset/44k/huawu/1505956834_796.wav
 ./dataset/44k/huawu/1205891033_1695.wav
@@ -508,7 +501,6 @@
 ./dataset/44k/huawu/1755625659_1116.wav
 ./dataset/44k/huawu/1205891033_884.wav
 ./dataset/44k/huawu/1155271209_602.wav
-./dataset/44k/huawu/sign3_7.wav
 ./dataset/44k/huawu/1505956834_1130.wav
 ./dataset/44k/huawu/1505956834_122.wav
 ./dataset/44k/huawu/1155271209_175.wav
@@ -617,7 +609,6 @@
 ./dataset/44k/huawu/1205891033_1330.wav
 ./dataset/44k/huawu/1205891033_1364.wav
 ./dataset/44k/huawu/1205891033_171.wav
-./dataset/44k/huawu/sign4_0.wav
 ./dataset/44k/huawu/1155271209_512.wav
 ./dataset/44k/huawu/1155591443_929.wav
 ./dataset/44k/huawu/1505956834_436.wav
@@ -658,7 +649,6 @@
 ./dataset/44k/huawu/1155591443_684.wav
 ./dataset/44k/huawu/1505956834_810.wav
 ./dataset/44k/huawu/1155271209_645.wav
-./dataset/44k/huawu/sign2_26.wav
 ./dataset/44k/huawu/1755625659_537.wav
 ./dataset/44k/huawu/1155591443_214.wav
 ./dataset/44k/huawu/1205891033_108.wav
@@ -698,7 +688,6 @@
 ./dataset/44k/huawu/1755625659_663.wav
 ./dataset/44k/huawu/1155271209_589.wav
 ./dataset/44k/huawu/1155591443_306.wav
-./dataset/44k/huawu/sign2_16.wav
 ./dataset/44k/huawu/1505956834_33.wav
 ./dataset/44k/huawu/1155271209_222.wav
 ./dataset/44k/huawu/1205891033_89.wav
@@ -975,7 +964,6 @@
 ./dataset/44k/huawu/1205891033_27.wav
 ./dataset/44k/huawu/1505956834_250.wav
 ./dataset/44k/huawu/1755625659_1012.wav
-./dataset/44k/huawu/sign1_4.wav
 ./dataset/44k/huawu/1505956834_396.wav
 ./dataset/44k/huawu/1755625659_1188.wav
 ./dataset/44k/huawu/1755625659_356.wav
@@ -1025,7 +1013,6 @@
 ./dataset/44k/huawu/1755625659_107.wav
 ./dataset/44k/huawu/1155591443_608.wav
 ./dataset/44k/huawu/1205891033_1618.wav
-./dataset/44k/huawu/sign2_27.wav
 ./dataset/44k/huawu/1155591443_5.wav
 ./dataset/44k/huawu/1205891033_1480.wav
 ./dataset/44k/huawu/1505956834_268.wav
@@ -1096,7 +1083,6 @@
 ./dataset/44k/huawu/1205891033_348.wav
 ./dataset/44k/huawu/1155591443_372.wav
 ./dataset/44k/huawu/1755625659_15.wav
-./dataset/44k/huawu/sign2_30.wav
 ./dataset/44k/huawu/1505956834_144.wav
 ./dataset/44k/huawu/1155271209_360.wav
 ./dataset/44k/huawu/1155591443_165.wav
@@ -1222,7 +1208,6 @@
 ./dataset/44k/huawu/1505956834_857.wav
 ./dataset/44k/huawu/1155271209_124.wav
 ./dataset/44k/huawu/1155591443_425.wav
-./dataset/44k/huawu/sign5_24.wav
 ./dataset/44k/huawu/1205891033_2086.wav
 ./dataset/44k/huawu/1505956834_850.wav
 ./dataset/44k/huawu/1205891033_119.wav
@@ -1265,7 +1250,6 @@
 ./dataset/44k/huawu/1155271209_728.wav
 ./dataset/44k/huawu/1205891033_1187.wav
 ./dataset/44k/huawu/1205891033_1437.wav
-./dataset/44k/huawu/sign5_4.wav
 ./dataset/44k/huawu/1505956834_968.wav
 ./dataset/44k/huawu/1205891033_1743.wav
 ./dataset/44k/huawu/1755625659_808.wav
@@ -1296,7 +1280,6 @@
 ./dataset/44k/huawu/1155591443_1092.wav
 ./dataset/44k/huawu/1755625659_609.wav
 ./dataset/44k/huawu/1505956834_411.wav
-./dataset/44k/huawu/1505956834_616.wav
 ./dataset/44k/huawu/1505956834_127.wav
 ./dataset/44k/huawu/1505956834_66.wav
 ./dataset/44k/huawu/1505956834_1175.wav
@@ -1359,7 +1342,6 @@
 ./dataset/44k/huawu/1205891033_2023.wav
 ./dataset/44k/huawu/1155591443_274.wav
 ./dataset/44k/huawu/1205891033_1244.wav
-./dataset/44k/huawu/sign2_7.wav
 ./dataset/44k/huawu/1505956834_428.wav
 ./dataset/44k/huawu/1505956834_1088.wav
 ./dataset/44k/huawu/1205891033_792.wav
@@ -1370,7 +1352,6 @@
 ./dataset/44k/huawu/1205891033_1407.wav
 ./dataset/44k/huawu/1505956834_1041.wav
 ./dataset/44k/huawu/1155271209_10.wav
-./dataset/44k/huawu/sign1_6.wav
 ./dataset/44k/huawu/1155591443_110.wav
 ./dataset/44k/huawu/1205891033_1405.wav
 ./dataset/44k/huawu/1205891033_1239.wav
@@ -1421,13 +1402,11 @@
 ./dataset/44k/huawu/1205891033_35.wav
 ./dataset/44k/huawu/1205891033_833.wav
 ./dataset/44k/huawu/1205891033_1860.wav
-./dataset/44k/huawu/sign5_5.wav
 ./dataset/44k/huawu/1205891033_1097.wav
 ./dataset/44k/huawu/1505956834_916.wav
 ./dataset/44k/huawu/1205891033_194.wav
 ./dataset/44k/huawu/1755625659_1055.wav
 ./dataset/44k/huawu/1155591443_1062.wav
-./dataset/44k/huawu/1205891033_196.wav
 ./dataset/44k/huawu/1505956834_1218.wav
 ./dataset/44k/huawu/1205891033_1998.wav
 ./dataset/44k/huawu/1505956834_379.wav
@@ -1489,7 +1468,6 @@
 ./dataset/44k/huawu/1205891033_684.wav
 ./dataset/44k/huawu/1155271209_613.wav
 ./dataset/44k/huawu/1755625659_496.wav
-./dataset/44k/huawu/sign5_10.wav
 ./dataset/44k/huawu/1505956834_832.wav
 ./dataset/44k/huawu/1755625659_406.wav
 ./dataset/44k/huawu/1205891033_81.wav
@@ -1549,7 +1527,6 @@
 ./dataset/44k/huawu/1755625659_208.wav
 ./dataset/44k/huawu/1755625659_405.wav
 ./dataset/44k/huawu/1755625659_448.wav
-./dataset/44k/huawu/1205891033_770.wav
 ./dataset/44k/huawu/1755625659_1056.wav
 ./dataset/44k/huawu/1205891033_1556.wav
 ./dataset/44k/huawu/1505956834_487.wav
@@ -1562,8 +1539,6 @@
 ./dataset/44k/huawu/1205891033_2036.wav
 ./dataset/44k/huawu/1755625659_589.wav
 ./dataset/44k/huawu/1155591443_178.wav
-./dataset/44k/huawu/sign2_25.wav
-./dataset/44k/huawu/sign5_22.wav
 ./dataset/44k/huawu/1155591443_96.wav
 ./dataset/44k/huawu/1205891033_814.wav
 ./dataset/44k/huawu/1205891033_889.wav
@@ -1658,7 +1633,6 @@
 ./dataset/44k/huawu/1155591443_802.wav
 ./dataset/44k/huawu/1205891033_208.wav
 ./dataset/44k/huawu/1155271209_587.wav
-./dataset/44k/huawu/1205891033_1849.wav
 ./dataset/44k/huawu/1155591443_782.wav
 ./dataset/44k/huawu/1755625659_582.wav
 ./dataset/44k/huawu/1205891033_1712.wav
@@ -1704,7 +1678,6 @@
 ./dataset/44k/huawu/1155591443_672.wav
 ./dataset/44k/huawu/1155271209_505.wav
 ./dataset/44k/huawu/1155591443_882.wav
-./dataset/44k/huawu/sign1_13.wav
 ./dataset/44k/huawu/1155591443_754.wav
 ./dataset/44k/huawu/1155591443_295.wav
 ./dataset/44k/huawu/1755625659_696.wav
@@ -1778,12 +1751,9 @@
 ./dataset/44k/huawu/1205891033_1319.wav
 ./dataset/44k/huawu/1505956834_998.wav
 ./dataset/44k/huawu/1205891033_2039.wav
-./dataset/44k/huawu/sign4_10.wav
 ./dataset/44k/huawu/1505956834_14.wav
 ./dataset/44k/huawu/1755625659_430.wav
 ./dataset/44k/huawu/1205891033_2025.wav
-./dataset/44k/huawu/sign3_6.wav
-./dataset/44k/huawu/sign5_21.wav
 ./dataset/44k/huawu/1505956834_300.wav
 ./dataset/44k/huawu/1505956834_1058.wav
 ./dataset/44k/huawu/1205891033_222.wav
@@ -1794,11 +1764,9 @@
 ./dataset/44k/huawu/1505956834_84.wav
 ./dataset/44k/huawu/1505956834_716.wav
 ./dataset/44k/huawu/1755625659_189.wav
-./dataset/44k/huawu/sign5_6.wav
 ./dataset/44k/huawu/1505956834_182.wav
 ./dataset/44k/huawu/1205891033_916.wav
 ./dataset/44k/huawu/1155271209_792.wav
-./dataset/44k/huawu/sign1_8.wav
 ./dataset/44k/huawu/1505956834_1004.wav
 ./dataset/44k/huawu/1205891033_1018.wav
 ./dataset/44k/huawu/1205891033_1354.wav
@@ -1845,7 +1813,6 @@
 ./dataset/44k/huawu/1155271209_592.wav
 ./dataset/44k/huawu/1155271209_637.wav
 ./dataset/44k/huawu/1205891033_316.wav
-./dataset/44k/huawu/sign2_8.wav
 ./dataset/44k/huawu/1205891033_397.wav
 ./dataset/44k/huawu/1155591443_854.wav
 ./dataset/44k/huawu/1755625659_428.wav
@@ -1884,7 +1851,6 @@
 ./dataset/44k/huawu/1205891033_140.wav
 ./dataset/44k/huawu/1205891033_43.wav
 ./dataset/44k/huawu/1205891033_1481.wav
-./dataset/44k/huawu/1205891033_2114.wav
 ./dataset/44k/huawu/1205891033_954.wav
 ./dataset/44k/huawu/1205891033_91.wav
 ./dataset/44k/huawu/1205891033_445.wav
@@ -1949,7 +1915,6 @@
 ./dataset/44k/huawu/1755625659_170.wav
 ./dataset/44k/huawu/1155591443_718.wav
 ./dataset/44k/huawu/1505956834_225.wav
-./dataset/44k/huawu/sign5_2.wav
 ./dataset/44k/huawu/1755625659_829.wav
 ./dataset/44k/huawu/1155271209_249.wav
 ./dataset/44k/huawu/1205891033_882.wav
@@ -1974,7 +1939,6 @@
 ./dataset/44k/huawu/1505956834_735.wav
 ./dataset/44k/huawu/1205891033_1073.wav
 ./dataset/44k/huawu/1205891033_1430.wav
-./dataset/44k/huawu/sign5_20.wav
 ./dataset/44k/huawu/1205891033_1874.wav
 ./dataset/44k/huawu/1755625659_823.wav
 ./dataset/44k/huawu/1205891033_1739.wav
@@ -1992,7 +1956,6 @@
 ./dataset/44k/huawu/1155271209_767.wav
 ./dataset/44k/huawu/1505956834_803.wav
 ./dataset/44k/huawu/1205891033_155.wav
-./dataset/44k/huawu/sign2_29.wav
 ./dataset/44k/huawu/1505956834_694.wav
 ./dataset/44k/huawu/1505956834_173.wav
 ./dataset/44k/huawu/1755625659_240.wav
@@ -2127,7 +2090,6 @@
 ./dataset/44k/huawu/1755625659_464.wav
 ./dataset/44k/huawu/1205891033_84.wav
 ./dataset/44k/huawu/1755625659_415.wav
-./dataset/44k/huawu/sign5_11.wav
 ./dataset/44k/huawu/1205891033_602.wav
 ./dataset/44k/huawu/1755625659_33.wav
 ./dataset/44k/huawu/1755625659_144.wav
@@ -2145,7 +2107,6 @@
 ./dataset/44k/huawu/1155591443_1080.wav
 ./dataset/44k/huawu/1205891033_1565.wav
 ./dataset/44k/huawu/1205891033_1140.wav
-./dataset/44k/huawu/sign2_9.wav
 ./dataset/44k/huawu/1205891033_1260.wav
 ./dataset/44k/huawu/1155591443_475.wav
 ./dataset/44k/huawu/1755625659_503.wav
@@ -2193,7 +2154,6 @@
 ./dataset/44k/huawu/1755625659_55.wav
 ./dataset/44k/huawu/1155591443_865.wav
 ./dataset/44k/huawu/1755625659_310.wav
-./dataset/44k/huawu/1505956834_678.wav
 ./dataset/44k/huawu/1505956834_559.wav
 ./dataset/44k/huawu/1505956834_1037.wav
 ./dataset/44k/huawu/1205891033_539.wav
@@ -2210,7 +2170,6 @@
 ./dataset/44k/huawu/1205891033_631.wav
 ./dataset/44k/huawu/1155591443_893.wav
 ./dataset/44k/huawu/1205891033_1076.wav
-./dataset/44k/huawu/sign4_3.wav
 ./dataset/44k/huawu/1205891033_1118.wav
 ./dataset/44k/huawu/1755625659_353.wav
 ./dataset/44k/huawu/1505956834_390.wav
@@ -2414,7 +2373,6 @@
 ./dataset/44k/huawu/1205891033_757.wav
 ./dataset/44k/huawu/1205891033_178.wav
 ./dataset/44k/huawu/1755625659_164.wav
-./dataset/44k/huawu/sign1_2.wav
 ./dataset/44k/huawu/1205891033_664.wav
 ./dataset/44k/huawu/1755625659_1013.wav
 ./dataset/44k/huawu/1155591443_256.wav
@@ -2428,7 +2386,6 @@
 ./dataset/44k/huawu/1505956834_1204.wav
 ./dataset/44k/huawu/1755625659_891.wav
 ./dataset/44k/huawu/1205891033_1813.wav
-./dataset/44k/huawu/sign3_3.wav
 ./dataset/44k/huawu/1755625659_1025.wav
 ./dataset/44k/huawu/1205891033_1378.wav
 ./dataset/44k/huawu/1505956834_316.wav
@@ -2442,7 +2399,6 @@
 ./dataset/44k/huawu/1755625659_939.wav
 ./dataset/44k/huawu/1755625659_1202.wav
 ./dataset/44k/huawu/1505956834_1016.wav
-./dataset/44k/huawu/1505956834_72.wav
 ./dataset/44k/huawu/1155271209_305.wav
 ./dataset/44k/huawu/1205891033_1840.wav
 ./dataset/44k/huawu/1505956834_1129.wav
@@ -2454,7 +2410,6 @@
 ./dataset/44k/huawu/1755625659_908.wav
 ./dataset/44k/huawu/1205891033_472.wav
 ./dataset/44k/huawu/1205891033_1269.wav
-./dataset/44k/huawu/sign1_11.wav
 ./dataset/44k/huawu/1205891033_1274.wav
 ./dataset/44k/huawu/1155591443_1074.wav
 ./dataset/44k/huawu/1155591443_572.wav
@@ -2476,7 +2431,6 @@
 ./dataset/44k/huawu/1205891033_1534.wav
 ./dataset/44k/huawu/1755625659_243.wav
 ./dataset/44k/huawu/1205891033_1047.wav
-./dataset/44k/huawu/sign2_37.wav
 ./dataset/44k/huawu/1755625659_492.wav
 ./dataset/44k/huawu/1155591443_844.wav
 ./dataset/44k/huawu/1205891033_434.wav
@@ -2610,7 +2564,6 @@
 ./dataset/44k/huawu/1155271209_9.wav
 ./dataset/44k/huawu/1155591443_1099.wav
 ./dataset/44k/huawu/1205891033_1865.wav
-./dataset/44k/huawu/1505956834_377.wav
 ./dataset/44k/huawu/1505956834_619.wav
 ./dataset/44k/huawu/1205891033_421.wav
 ./dataset/44k/huawu/1205891033_1311.wav
@@ -2672,7 +2625,6 @@
 ./dataset/44k/huawu/1205891033_829.wav
 ./dataset/44k/huawu/1155591443_57.wav
 ./dataset/44k/huawu/1155591443_116.wav
-./dataset/44k/huawu/1155591443_829.wav
 ./dataset/44k/huawu/1155591443_25.wav
 ./dataset/44k/huawu/1155591443_912.wav
 ./dataset/44k/huawu/1155271209_42.wav
@@ -2732,7 +2684,6 @@
 ./dataset/44k/huawu/1205891033_151.wav
 ./dataset/44k/huawu/1505956834_59.wav
 ./dataset/44k/huawu/1755625659_742.wav
-./dataset/44k/huawu/1155271209_383.wav
 ./dataset/44k/huawu/1755625659_90.wav
 ./dataset/44k/huawu/1505956834_75.wav
 ./dataset/44k/huawu/1205891033_1816.wav
@@ -2771,7 +2722,6 @@
 ./dataset/44k/huawu/1205891033_298.wav
 ./dataset/44k/huawu/1155271209_359.wav
 ./dataset/44k/huawu/1155271209_720.wav
-./dataset/44k/huawu/sign1_16.wav
 ./dataset/44k/huawu/1205891033_801.wav
 ./dataset/44k/huawu/1205891033_1769.wav
 ./dataset/44k/huawu/1155591443_742.wav
@@ -2780,7 +2730,6 @@
 ./dataset/44k/huawu/1155591443_439.wav
 ./dataset/44k/huawu/1505956834_874.wav
 ./dataset/44k/huawu/1155271209_657.wav
-./dataset/44k/huawu/sign5_7.wav
 ./dataset/44k/huawu/1755625659_160.wav
 ./dataset/44k/huawu/1205891033_1757.wav
 ./dataset/44k/huawu/1205891033_1684.wav
@@ -2855,7 +2804,6 @@
 ./dataset/44k/huawu/1155271209_103.wav
 ./dataset/44k/huawu/1505956834_1217.wav
 ./dataset/44k/huawu/1205891033_1614.wav
-./dataset/44k/huawu/sign4_12.wav
 ./dataset/44k/huawu/1155591443_589.wav
 ./dataset/44k/huawu/1205891033_1677.wav
 ./dataset/44k/huawu/1155591443_1067.wav
@@ -2875,7 +2823,6 @@
 ./dataset/44k/huawu/1155591443_90.wav
 ./dataset/44k/huawu/1155591443_394.wav
 ./dataset/44k/huawu/1755625659_341.wav
-./dataset/44k/huawu/sign2_33.wav
 ./dataset/44k/huawu/1505956834_136.wav
 ./dataset/44k/huawu/1205891033_309.wav
 ./dataset/44k/huawu/1205891033_54.wav
@@ -2887,7 +2834,6 @@
 ./dataset/44k/huawu/1755625659_261.wav
 ./dataset/44k/huawu/1505956834_960.wav
 ./dataset/44k/huawu/1755625659_437.wav
-./dataset/44k/huawu/sign4_8.wav
 ./dataset/44k/huawu/1505956834_576.wav
 ./dataset/44k/huawu/1505956834_444.wav
 ./dataset/44k/huawu/1155271209_769.wav
@@ -3028,7 +2974,6 @@
 ./dataset/44k/huawu/1505956834_1179.wav
 ./dataset/44k/huawu/1205891033_1700.wav
 ./dataset/44k/huawu/1205891033_234.wav
-./dataset/44k/huawu/sign4_9.wav
 ./dataset/44k/huawu/1505956834_1022.wav
 ./dataset/44k/huawu/1755625659_1165.wav
 ./dataset/44k/huawu/1155591443_163.wav
@@ -3089,7 +3034,6 @@
 ./dataset/44k/huawu/1205891033_2038.wav
 ./dataset/44k/huawu/1155271209_450.wav
 ./dataset/44k/huawu/1755625659_233.wav
-./dataset/44k/huawu/1505956834_781.wav
 ./dataset/44k/huawu/1155591443_412.wav
 ./dataset/44k/huawu/1755625659_476.wav
 ./dataset/44k/huawu/1505956834_1221.wav
@@ -3170,7 +3114,6 @@
 ./dataset/44k/huawu/1205891033_1321.wav
 ./dataset/44k/huawu/1205891033_408.wav
 ./dataset/44k/huawu/1155591443_360.wav
-./dataset/44k/huawu/sign5_12.wav
 ./dataset/44k/huawu/1155591443_569.wav
 ./dataset/44k/huawu/1155591443_390.wav
 ./dataset/44k/huawu/1205891033_894.wav
@@ -3234,7 +3177,6 @@
 ./dataset/44k/huawu/1755625659_825.wav
 ./dataset/44k/huawu/1155271209_201.wav
 ./dataset/44k/huawu/1205891033_566.wav
-./dataset/44k/huawu/sign2_22.wav
 ./dataset/44k/huawu/1205891033_1989.wav
 ./dataset/44k/huawu/1755625659_388.wav
 ./dataset/44k/huawu/1205891033_1004.wav
@@ -3291,7 +3233,6 @@
 ./dataset/44k/huawu/1205891033_456.wav
 ./dataset/44k/huawu/1205891033_1639.wav
 ./dataset/44k/huawu/1155591443_533.wav
-./dataset/44k/huawu/sign2_20.wav
 ./dataset/44k/huawu/1505956834_1020.wav
 ./dataset/44k/huawu/1505956834_288.wav
 ./dataset/44k/huawu/1205891033_909.wav
@@ -3364,7 +3305,6 @@
 ./dataset/44k/huawu/1205891033_1627.wav
 ./dataset/44k/huawu/1205891033_418.wav
 ./dataset/44k/huawu/1155271209_783.wav
-./dataset/44k/huawu/sign5_8.wav
 ./dataset/44k/huawu/1505956834_701.wav
 ./dataset/44k/huawu/1205891033_1646.wav
 ./dataset/44k/huawu/1205891033_1577.wav
@@ -3431,7 +3371,6 @@
 ./dataset/44k/huawu/1155591443_137.wav
 ./dataset/44k/huawu/1155591443_172.wav
 ./dataset/44k/huawu/1205891033_660.wav
-./dataset/44k/huawu/sign1_14.wav
 ./dataset/44k/huawu/1505956834_569.wav
 ./dataset/44k/huawu/1755625659_1027.wav
 ./dataset/44k/huawu/1155271209_416.wav
@@ -3442,7 +3381,6 @@
 ./dataset/44k/huawu/1755625659_822.wav
 ./dataset/44k/huawu/1155591443_688.wav
 ./dataset/44k/huawu/1755625659_94.wav
-./dataset/44k/huawu/sign5_26.wav
 ./dataset/44k/huawu/1755625659_199.wav
 ./dataset/44k/huawu/1505956834_1268.wav
 ./dataset/44k/huawu/1155271209_253.wav
@@ -3548,7 +3486,6 @@
 ./dataset/44k/huawu/1505956834_951.wav
 ./dataset/44k/huawu/1755625659_100.wav
 ./dataset/44k/huawu/1755625659_124.wav
-./dataset/44k/huawu/sign3_1.wav
 ./dataset/44k/huawu/1205891033_1744.wav
 ./dataset/44k/huawu/1155591443_753.wav
 ./dataset/44k/huawu/1505956834_839.wav
@@ -3564,7 +3501,6 @@
 ./dataset/44k/huawu/1755625659_497.wav
 ./dataset/44k/huawu/1505956834_333.wav
 ./dataset/44k/huawu/1205891033_2110.wav
-./dataset/44k/huawu/sign1_20.wav
 ./dataset/44k/huawu/1755625659_1134.wav
 ./dataset/44k/huawu/1155591443_64.wav
 ./dataset/44k/huawu/1155271209_525.wav
@@ -3572,7 +3508,6 @@
 ./dataset/44k/huawu/1155271209_796.wav
 ./dataset/44k/huawu/1205891033_1165.wav
 ./dataset/44k/huawu/1205891033_347.wav
-./dataset/44k/huawu/sign3_8.wav
 ./dataset/44k/huawu/1155591443_666.wav
 ./dataset/44k/huawu/1505956834_1117.wav
 ./dataset/44k/huawu/1755625659_222.wav
@@ -3582,7 +3517,6 @@
 ./dataset/44k/huawu/1505956834_854.wav
 ./dataset/44k/huawu/1155271209_184.wav
 ./dataset/44k/huawu/1205891033_1648.wav
-./dataset/44k/huawu/sign4_6.wav
 ./dataset/44k/huawu/1505956834_146.wav
 ./dataset/44k/huawu/1155591443_132.wav
 ./dataset/44k/huawu/1155591443_3.wav
@@ -3598,7 +3532,6 @@
 ./dataset/44k/huawu/1205891033_683.wav
 ./dataset/44k/huawu/1205891033_235.wav
 ./dataset/44k/huawu/1505956834_8.wav
-./dataset/44k/huawu/sign5_30.wav
 ./dataset/44k/huawu/1505956834_843.wav
 ./dataset/44k/huawu/1505956834_664.wav
 ./dataset/44k/huawu/1505956834_338.wav
@@ -3620,7 +3553,6 @@
 ./dataset/44k/huawu/1505956834_1084.wav
 ./dataset/44k/huawu/1505956834_967.wav
 ./dataset/44k/huawu/1205891033_1144.wav
-./dataset/44k/huawu/sign2_39.wav
 ./dataset/44k/huawu/1205891033_1113.wav
 ./dataset/44k/huawu/1505956834_785.wav
 ./dataset/44k/huawu/1205891033_1472.wav
@@ -3694,7 +3626,6 @@
 ./dataset/44k/huawu/1755625659_693.wav
 ./dataset/44k/huawu/1755625659_595.wav
 ./dataset/44k/huawu/1755625659_250.wav
-./dataset/44k/huawu/sign3_4.wav
 ./dataset/44k/huawu/1505956834_681.wav
 ./dataset/44k/huawu/1505956834_193.wav
 ./dataset/44k/huawu/1755625659_210.wav
@@ -3736,7 +3667,6 @@
 ./dataset/44k/huawu/1155591443_173.wav
 ./dataset/44k/huawu/1755625659_636.wav
 ./dataset/44k/huawu/1155591443_9.wav
-./dataset/44k/huawu/sign2_18.wav
 ./dataset/44k/huawu/1505956834_1172.wav
 ./dataset/44k/huawu/1155591443_176.wav
 ./dataset/44k/huawu/1755625659_591.wav
@@ -3786,12 +3716,10 @@
 ./dataset/44k/huawu/1505956834_1148.wav
 ./dataset/44k/huawu/1205891033_1546.wav
 ./dataset/44k/huawu/1205891033_378.wav
-./dataset/44k/huawu/sign5_13.wav
 ./dataset/44k/huawu/1205891033_2119.wav
 ./dataset/44k/huawu/1755625659_1184.wav
 ./dataset/44k/huawu/1155591443_648.wav
 ./dataset/44k/huawu/1505956834_543.wav
-./dataset/44k/huawu/sign5_0.wav
 ./dataset/44k/huawu/1755625659_1062.wav
 ./dataset/44k/huawu/1505956834_108.wav
 ./dataset/44k/huawu/1505956834_797.wav
@@ -3800,7 +3728,6 @@
 ./dataset/44k/huawu/1505956834_956.wav
 ./dataset/44k/huawu/1155591443_685.wav
 ./dataset/44k/huawu/1755625659_162.wav
-./dataset/44k/huawu/sign1_5.wav
 ./dataset/44k/huawu/1755625659_1083.wav
 ./dataset/44k/huawu/1505956834_1025.wav
 ./dataset/44k/huawu/1155591443_1069.wav
@@ -3887,11 +3814,9 @@
 ./dataset/44k/huawu/1505956834_222.wav
 ./dataset/44k/huawu/1205891033_181.wav
 ./dataset/44k/huawu/1155271209_529.wav
-./dataset/44k/huawu/1505956834_124.wav
 ./dataset/44k/huawu/1155591443_877.wav
 ./dataset/44k/huawu/1155591443_1035.wav
 ./dataset/44k/huawu/1505956834_608.wav
-./dataset/44k/huawu/sign2_21.wav
 ./dataset/44k/huawu/1205891033_1497.wav
 ./dataset/44k/huawu/1205891033_1530.wav
 ./dataset/44k/huawu/1755625659_395.wav
@@ -3975,7 +3900,6 @@
 ./dataset/44k/huawu/1205891033_1512.wav
 ./dataset/44k/huawu/1505956834_670.wav
 ./dataset/44k/huawu/1755625659_1128.wav
-./dataset/44k/huawu/sign5_25.wav
 ./dataset/44k/huawu/1505956834_16.wav
 ./dataset/44k/huawu/1155271209_254.wav
 ./dataset/44k/huawu/1155591443_1066.wav
@@ -3990,7 +3914,6 @@
 ./dataset/44k/huawu/1155591443_94.wav
 ./dataset/44k/huawu/1155271209_753.wav
 ./dataset/44k/huawu/1155271209_756.wav
-./dataset/44k/huawu/sign2_24.wav
 ./dataset/44k/huawu/1505956834_427.wav
 ./dataset/44k/huawu/1155271209_609.wav
 ./dataset/44k/huawu/1155591443_472.wav
@@ -4188,7 +4111,6 @@
 ./dataset/44k/huawu/1155271209_658.wav
 ./dataset/44k/huawu/1205891033_932.wav
 ./dataset/44k/huawu/1205891033_993.wav
-./dataset/44k/huawu/sign2_12.wav
 ./dataset/44k/huawu/1755625659_851.wav
 ./dataset/44k/huawu/1205891033_7.wav
 ./dataset/44k/huawu/1505956834_147.wav
@@ -4293,7 +4215,6 @@
 ./dataset/44k/huawu/1505956834_1248.wav
 ./dataset/44k/huawu/1205891033_489.wav
 ./dataset/44k/huawu/1155271209_107.wav
-./dataset/44k/huawu/sign5_3.wav
 ./dataset/44k/huawu/1755625659_66.wav
 ./dataset/44k/huawu/1205891033_267.wav
 ./dataset/44k/huawu/1155591443_181.wav
@@ -4333,7 +4254,6 @@
 ./dataset/44k/huawu/1155271209_115.wav
 ./dataset/44k/huawu/1155591443_442.wav
 ./dataset/44k/huawu/1205891033_972.wav
-./dataset/44k/huawu/sign2_2.wav
 ./dataset/44k/huawu/1205891033_844.wav
 ./dataset/44k/huawu/1755625659_270.wav
 ./dataset/44k/huawu/1505956834_1116.wav
@@ -4392,7 +4312,6 @@
 ./dataset/44k/huawu/1205891033_1781.wav
 ./dataset/44k/huawu/1755625659_1133.wav
 ./dataset/44k/huawu/1155591443_544.wav
-./dataset/44k/huawu/sign1_7.wav
 ./dataset/44k/huawu/1505956834_263.wav
 ./dataset/44k/huawu/1755625659_916.wav
 ./dataset/44k/huawu/1505956834_873.wav
@@ -4434,7 +4353,6 @@
 ./dataset/44k/huawu/1505956834_272.wav
 ./dataset/44k/huawu/1205891033_1242.wav
 ./dataset/44k/huawu/1155591443_508.wav
-./dataset/44k/huawu/sign2_38.wav
 ./dataset/44k/huawu/1205891033_835.wav
 ./dataset/44k/huawu/1755625659_731.wav
 ./dataset/44k/huawu/1205891033_983.wav
@@ -4467,11 +4385,9 @@
 ./dataset/44k/huawu/1505956834_633.wav
 ./dataset/44k/huawu/1205891033_1623.wav
 ./dataset/44k/huawu/1755625659_91.wav
-./dataset/44k/huawu/1505956834_318.wav
 ./dataset/44k/huawu/1155271209_758.wav
 ./dataset/44k/huawu/1755625659_614.wav
 ./dataset/44k/huawu/1205891033_591.wav
-./dataset/44k/huawu/sign2_5.wav
 ./dataset/44k/huawu/1505956834_914.wav
 ./dataset/44k/huawu/1155591443_885.wav
 ./dataset/44k/huawu/1755625659_820.wav
@@ -4664,7 +4580,6 @@
 ./dataset/44k/huawu/1155591443_952.wav
 ./dataset/44k/huawu/1505956834_684.wav
 ./dataset/44k/huawu/1155591443_141.wav
-./dataset/44k/huawu/sign2_0.wav
 ./dataset/44k/huawu/1505956834_401.wav
 ./dataset/44k/huawu/1505956834_1135.wav
 ./dataset/44k/huawu/1205891033_827.wav
@@ -4686,7 +4601,6 @@
 ./dataset/44k/huawu/1755625659_935.wav
 ./dataset/44k/huawu/1755625659_1132.wav
 ./dataset/44k/huawu/1505956834_443.wav
-./dataset/44k/huawu/sign2_19.wav
 ./dataset/44k/huawu/1155271209_251.wav
 ./dataset/44k/huawu/1205891033_193.wav
 ./dataset/44k/huawu/1155591443_1010.wav
@@ -4710,7 +4624,6 @@
 ./dataset/44k/huawu/1205891033_1715.wav
 ./dataset/44k/huawu/1205891033_5.wav
 ./dataset/44k/huawu/1755625659_527.wav
-./dataset/44k/huawu/1205891033_574.wav
 ./dataset/44k/huawu/1505956834_1143.wav
 ./dataset/44k/huawu/1205891033_176.wav
 ./dataset/44k/huawu/1505956834_818.wav
@@ -4736,7 +4649,6 @@
 ./dataset/44k/huawu/1755625659_1141.wav
 ./dataset/44k/huawu/1155591443_392.wav
 ./dataset/44k/huawu/1205891033_693.wav
-./dataset/44k/huawu/sign1_0.wav
 ./dataset/44k/huawu/1155271209_145.wav
 ./dataset/44k/huawu/1505956834_830.wav
 ./dataset/44k/huawu/1155591443_554.wav
@@ -4749,7 +4661,6 @@
 ./dataset/44k/huawu/1755625659_832.wav
 ./dataset/44k/huawu/1155591443_56.wav
 ./dataset/44k/huawu/1505956834_579.wav
-./dataset/44k/huawu/sign5_27.wav
 ./dataset/44k/huawu/1155591443_978.wav
 ./dataset/44k/huawu/1155591443_591.wav
 ./dataset/44k/huawu/1755625659_766.wav
@@ -4830,7 +4741,6 @@
 ./dataset/44k/huawu/1205891033_535.wav
 ./dataset/44k/huawu/1205891033_1012.wav
 ./dataset/44k/huawu/1505956834_48.wav
-./dataset/44k/huawu/sign1_15.wav
 ./dataset/44k/huawu/1505956834_1261.wav
 ./dataset/44k/huawu/1155591443_515.wav
 ./dataset/44k/huawu/1755625659_1109.wav
@@ -4841,7 +4751,6 @@
 ./dataset/44k/huawu/1755625659_1209.wav
 ./dataset/44k/huawu/1205891033_1431.wav
 ./dataset/44k/huawu/1155271209_451.wav
-./dataset/44k/huawu/1155591443_628.wav
 ./dataset/44k/huawu/1755625659_49.wav
 ./dataset/44k/huawu/1155271209_498.wav
 ./dataset/44k/huawu/1505956834_517.wav
@@ -4857,7 +4766,6 @@
 ./dataset/44k/huawu/1755625659_839.wav
 ./dataset/44k/huawu/1505956834_52.wav
 ./dataset/44k/huawu/1155591443_206.wav
-./dataset/44k/huawu/1205891033_493.wav
 ./dataset/44k/huawu/1755625659_544.wav
 ./dataset/44k/huawu/1755625659_1129.wav
 ./dataset/44k/huawu/1155591443_690.wav
@@ -4874,7 +4782,6 @@
 ./dataset/44k/huawu/1505956834_424.wav
 ./dataset/44k/huawu/1205891033_883.wav
 ./dataset/44k/huawu/1205891033_1427.wav
-./dataset/44k/huawu/sign2_6.wav
 ./dataset/44k/huawu/1505956834_230.wav
 ./dataset/44k/huawu/1755625659_667.wav
 ./dataset/44k/huawu/1505956834_137.wav
@@ -4982,7 +4889,6 @@
 ./dataset/44k/huawu/1755625659_734.wav
 ./dataset/44k/huawu/1755625659_244.wav
 ./dataset/44k/huawu/1155271209_178.wav
-./dataset/44k/huawu/sign2_31.wav
 ./dataset/44k/huawu/1205891033_1369.wav
 ./dataset/44k/huawu/1155591443_605.wav
 ./dataset/44k/huawu/1755625659_292.wav
@@ -5134,7 +5040,6 @@
 ./dataset/44k/huawu/1155591443_238.wav
 ./dataset/44k/huawu/1755625659_774.wav
 ./dataset/44k/huawu/1155591443_1036.wav
-./dataset/44k/huawu/sign4_5.wav
 ./dataset/44k/huawu/1505956834_1283.wav
 ./dataset/44k/huawu/1505956834_583.wav
 ./dataset/44k/huawu/1205891033_527.wav
@@ -5177,7 +5082,6 @@
 ./dataset/44k/huawu/1755625659_54.wav
 ./dataset/44k/huawu/1205891033_601.wav
 ./dataset/44k/huawu/1155591443_990.wav
-./dataset/44k/huawu/1155591443_615.wav
 ./dataset/44k/huawu/1155271209_323.wav
 ./dataset/44k/huawu/1205891033_949.wav
 ./dataset/44k/huawu/1205891033_1939.wav
@@ -5287,7 +5191,6 @@
 ./dataset/44k/huawu/1505956834_1119.wav
 ./dataset/44k/huawu/1205891033_685.wav
 ./dataset/44k/huawu/1155591443_191.wav
-./dataset/44k/huawu/1155591443_649.wav
 ./dataset/44k/huawu/1155591443_75.wav
 ./dataset/44k/huawu/1205891033_1286.wav
 ./dataset/44k/huawu/1205891033_590.wav
@@ -5307,7 +5210,6 @@
 ./dataset/44k/huawu/1755625659_490.wav
 ./dataset/44k/huawu/1755625659_925.wav
 ./dataset/44k/huawu/1205891033_639.wav
-./dataset/44k/huawu/sign2_4.wav
 ./dataset/44k/huawu/1205891033_1593.wav
 ./dataset/44k/huawu/1155271209_517.wav
 ./dataset/44k/huawu/1755625659_573.wav
@@ -5334,7 +5236,6 @@
 ./dataset/44k/huawu/1505956834_841.wav
 ./dataset/44k/huawu/1755625659_325.wav
 ./dataset/44k/huawu/1205891033_1411.wav
-./dataset/44k/huawu/sign5_29.wav
 ./dataset/44k/huawu/1155271209_677.wav
 ./dataset/44k/huawu/1505956834_1233.wav
 ./dataset/44k/huawu/1205891033_1166.wav
@@ -5367,7 +5268,6 @@
 ./dataset/44k/huawu/1205891033_1446.wav
 ./dataset/44k/huawu/1205891033_1328.wav
 ./dataset/44k/huawu/1155271209_69.wav
-./dataset/44k/huawu/sign2_17.wav
 ./dataset/44k/huawu/1505956834_1282.wav
 ./dataset/44k/huawu/1155591443_834.wav
 ./dataset/44k/huawu/1155591443_625.wav
@@ -5381,7 +5281,6 @@
 ./dataset/44k/huawu/1755625659_932.wav
 ./dataset/44k/huawu/1155591443_960.wav
 ./dataset/44k/huawu/1155271209_543.wav
-./dataset/44k/huawu/sign3_0.wav
 ./dataset/44k/huawu/1155591443_108.wav
 ./dataset/44k/huawu/1155591443_441.wav
 ./dataset/44k/huawu/1755625659_347.wav
@@ -5544,9 +5443,7 @@
 ./dataset/44k/huawu/1155271209_662.wav
 ./dataset/44k/huawu/1205891033_1625.wav
 ./dataset/44k/huawu/1755625659_360.wav
-./dataset/44k/huawu/sign1_19.wav
 ./dataset/44k/huawu/1205891033_1603.wav
-./dataset/44k/huawu/sign5_19.wav
 ./dataset/44k/huawu/1205891033_729.wav
 ./dataset/44k/huawu/1205891033_485.wav
 ./dataset/44k/huawu/1505956834_29.wav
@@ -5626,7 +5523,6 @@
 ./dataset/44k/huawu/1205891033_188.wav
 ./dataset/44k/huawu/1205891033_1134.wav
 ./dataset/44k/huawu/1205891033_1176.wav
-./dataset/44k/huawu/sign2_11.wav
 ./dataset/44k/huawu/1205891033_1923.wav
 ./dataset/44k/huawu/1505956834_1279.wav
 ./dataset/44k/huawu/1205891033_952.wav
@@ -5750,7 +5646,6 @@
 ./dataset/44k/huawu/1155591443_839.wav
 ./dataset/44k/huawu/1205891033_1819.wav
 ./dataset/44k/huawu/1205891033_831.wav
-./dataset/44k/huawu/sign3_5.wav
 ./dataset/44k/huawu/1205891033_1343.wav
 ./dataset/44k/huawu/1755625659_322.wav
 ./dataset/44k/huawu/1155271209_292.wav
@@ -5803,7 +5698,6 @@
 ./dataset/44k/huawu/1205891033_761.wav
 ./dataset/44k/huawu/1755625659_974.wav
 ./dataset/44k/huawu/1505956834_852.wav
-./dataset/44k/huawu/1755625659_951.wav
 ./dataset/44k/huawu/1505956834_813.wav
 ./dataset/44k/huawu/1205891033_1982.wav
 ./dataset/44k/huawu/1505956834_87.wav
@@ -5811,7 +5705,6 @@
 ./dataset/44k/huawu/1505956834_1155.wav
 ./dataset/44k/huawu/1205891033_2060.wav
 ./dataset/44k/huawu/1205891033_597.wav
-./dataset/44k/huawu/sign4_1.wav
 ./dataset/44k/huawu/1155591443_242.wav
 ./dataset/44k/huawu/1755625659_1147.wav
 ./dataset/44k/huawu/1755625659_532.wav
@@ -5825,7 +5718,6 @@
 ./dataset/44k/huawu/1155271209_428.wav
 ./dataset/44k/huawu/1155591443_166.wav
 ./dataset/44k/huawu/1155271209_797.wav
-./dataset/44k/huawu/sign2_13.wav
 ./dataset/44k/huawu/1155271209_354.wav
 ./dataset/44k/huawu/1505956834_777.wav
 ./dataset/44k/huawu/1505956834_496.wav
@@ -5838,7 +5730,6 @@
 ./dataset/44k/huawu/1205891033_1271.wav
 ./dataset/44k/huawu/1155271209_749.wav
 ./dataset/44k/huawu/1505956834_423.wav
-./dataset/44k/huawu/sign5_28.wav
 ./dataset/44k/huawu/1155591443_1052.wav
 ./dataset/44k/huawu/1205891033_778.wav
 ./dataset/44k/huawu/1755625659_471.wav
@@ -5887,7 +5778,6 @@
 ./dataset/44k/huawu/1205891033_2090.wav
 ./dataset/44k/huawu/1505956834_426.wav
 ./dataset/44k/huawu/1205891033_848.wav
-./dataset/44k/huawu/sign1_3.wav
 ./dataset/44k/huawu/1205891033_830.wav
 ./dataset/44k/huawu/1505956834_1134.wav
 ./dataset/44k/huawu/1155591443_575.wav
@@ -5898,7 +5788,6 @@
 ./dataset/44k/huawu/1205891033_30.wav
 ./dataset/44k/huawu/1755625659_86.wav
 ./dataset/44k/huawu/1205891033_94.wav
-./dataset/44k/huawu/sign4_2.wav
 ./dataset/44k/huawu/1155591443_198.wav
 ./dataset/44k/huawu/1505956834_765.wav
 ./dataset/44k/huawu/1155591443_1095.wav
@@ -5931,7 +5820,6 @@
 ./dataset/44k/huawu/1205891033_1784.wav
 ./dataset/44k/huawu/1155591443_1059.wav
 ./dataset/44k/huawu/1505956834_491.wav
-./dataset/44k/huawu/sign2_28.wav
 ./dataset/44k/huawu/1205891033_219.wav
 ./dataset/44k/huawu/1505956834_656.wav
 ./dataset/44k/huawu/1505956834_556.wav
@@ -6019,7 +5907,6 @@
 ./dataset/44k/huawu/1155591443_386.wav
 ./dataset/44k/huawu/1155271209_317.wav
 ./dataset/44k/huawu/1155591443_1065.wav
-./dataset/44k/huawu/sign5_9.wav
 ./dataset/44k/huawu/1505956834_324.wav
 ./dataset/44k/huawu/1155271209_43.wav
 ./dataset/44k/huawu/1205891033_1621.wav

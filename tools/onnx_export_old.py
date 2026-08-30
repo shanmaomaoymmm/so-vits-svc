@@ -1,4 +1,10 @@
+import os
+import sys
+
 import torch
+
+# 将项目根目录加入 sys.path, 使本脚本在 tools/ 下也能导入根目录模块
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import utils
 from onnxexport.model_onnx import SynthesizerTrn

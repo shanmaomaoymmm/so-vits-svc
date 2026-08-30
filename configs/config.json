@@ -24,7 +24,7 @@
     "max_speclen": 512,
     "port": "8001",
     "keep_ckpts": 12,
-    "all_in_mem": false,
+    "all_in_mem": true,
     "vol_aug": false,
     "grad_clip": 30000.0,
     "grad_clip_d": 30000.0,
